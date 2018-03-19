@@ -1,0 +1,22 @@
+---
+title: "Lab 3"
+author: "Nishant Velagapudi, Bryan Moore, Morris Burkhardt"
+date: "March 19, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+## EDA
+
+## Order Identification
+
+## Model Creation
+
+## Fit Evaluation
+
+## Conclusion
