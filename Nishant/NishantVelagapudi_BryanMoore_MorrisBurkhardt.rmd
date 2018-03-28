@@ -5,14 +5,221 @@ date: "March 19, 2018"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 ## Introduction
 
 ## EDA
+## Load Data and format
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 
+#load part 1 data
+ecomp <- read.csv("ECOMPCTNSA.csv", sep=',')
+#transform into ts - data is quarterly, so four periods per year, starts at the beginning of october 1999
+ecomp.ts <- ts(ecomp$ECOMPCTNSA, start=c(1999, 3), freq=4)
+
+#load part 2 data
+MTS <- read.table("data_2018Spring_MTS.txt", sep=' ', header=TRUE)
+MTS.ts <- ts(MTS[,c("series1","series2","series3","series4")],start=c(1947,1),freq=12)
+```
+
+```{r}
+library(tseries)
+library(forecast)
+library(dplyr)
+library(astsa)
+library(Hmisc)
+library(forecast)
+library(xts)
+library(vars)
+
+#Question 1
+tsplot(ecomp.ts)
+acf(ecomp.ts)
+pacf(ecomp.ts)
+
+plot(decompose(ecomp.ts))
+```
+We see a nonstationary time series (trending upwards) with a clear seasonality. The autocorrelation of this series is slowly declining, while the partial autocorrelation provides further evidence of seasonality (spikes at every "yearly" point). The decomposition plot of this series reinforces these takeaways: we see a clear linearly increasing trend and steady seasonality (though the residuals in this breakout are clearly not white-noise and suggest a more sophisticated modelling approach such as SARIMA will be needed).
+
+We explore differencing on a quarterly, biannual, and annual basis (the last would seem to be best from our PACF chart). We observe growing "amplitude" in seasonality for both quarterly and biannual differencing - there is an upwards trend even in annual differencing, but the magnitude is significantly less. Finally, we attempt taking the difference of the annual difference and see that this truly appears to be white noise. This leads us to believe that first order differencing over a yearly seasonality could be appropriate for modelling this time series.
+
+```{r}
+plot(diff(ecomp.ts,lag=1))
+plot(diff(ecomp.ts,lag=2))
+plot(diff(ecomp.ts,lag=4))
+plot(diff(diff(ecomp.ts,lag=4)))
+```
+```{r}
+acf(diff(ecomp.ts,lag=4))
+pacf(diff(ecomp.ts,lag=4))
+```
+
+The PACF of the annual differencing shows that outside of seasonality and the first lag, no other values are used. The ACF chart suggests serial correlation that is steadily decaying. To summarize, we find a slowly decaying ACF of the unaltered series with significance up to Lag 4. The PACF function suggests seasonality. Differencing by year and then by a single lag appears to produce the series most like white noise. This suggests a seasonal (with seasonality of 4) moving average model of an order potentially as high as 4. The ACF and PACF of the annually differenced series suggest that the seasonal portion of the model will likely also be moving average with an order as high as 2.
+
+We will use the auto arima function to explore what order values would be suggested through minimizing the AIC of various model fits.
+
+```{r}
+auto.arima(ecomp.ts)
+```
+
+Auto arima suggests a (0,1,1) model with a seasonal order of (0,1,0) and annual seasonality. The auto-arima finding agrees with our EDA in some points (annual seasonality, first order differencing), but we would have expected a moving average aspect to the seasonal portion of the model and have not observed anything in our EDA that would suggest differencing both the non seasonal and seasonal aspects of the series. Here, we hold back 2015 and 2016 data to test our models.
+```{r}
+ecomp.ts.trunc <- ts(ecomp.ts[time(ecomp.ts) < 2015], start=c(1999, 3), freq=4)
+ecomp.ts.trunc.test <- ts(ecomp.ts[time(ecomp.ts) >= 2015], start=c(2015,1),freq=4)
+
+#summarize auto arima orders as well as manual specification
+sarima(ecomp.ts.trunc,p=0,d=1,q=1,P=0,D=1,Q=0,S=4)
+sarima(ecomp.ts.trunc,p=0,d=1,q=2,P=0,D=0,Q=1,S=4)
+
+#fit model
+ecomp.ts.autoARIMA <- arima(ecomp.ts.trunc,order=c(0,1,1),seasonal=list(order=c(0,1,0), period=4))
+ecomp.ts.manualARIMA <- arima(ecomp.ts.trunc,order=c(0,1,2),seasonal=list(order=c(0,0,1), period=4))
+
+Forecast_inSet <- forecast(ecomp.ts.autoARIMA, h = 7)
+Forecast_OutSet <- forecast(ecomp.ts.autoARIMA, h = 12)
+  
+#forecast and fit - auto arima
+plot(Forecast_OutSet)
+lines(ecomp.ts.trunc.test, col='red')
+
+#manual
+plot(Forecast_OutSet)
+lines(ecomp.ts.trunc.test,col='red')
+
+Box.test(ecomp.ts.autoARIMA$residuals, type="Ljung-Box")
+#Box.test(ecomp.ts.manualARIMA, type="Ljung-Box")
+```
+The specification returned by auto arima performs better. Visually, the fit provided is very good. As expected, the prediction confidence intervals expand as we forecast further and further from the end of the training data set. We next calculate residuals within that test set and show that there is no autocorrelation in the residuals with an ACF plot and using the Ljung-box test.
+
+```{r}
+
+#test residuals
+AutoArima.test.Residuals <- as.numeric(ecomp.ts.trunc.test) - Forecast_inSet$mean
+plot(AutoArima.test.Residuals)
+acf(AutoArima.test.Residuals)
+pacf(AutoArima.test.Residuals)
+
+Box.test(AutoArima.test.Residuals, type="Ljung-Box")
+```
+
+```{r}
+#Question 2
+plot(MTS.ts)
+
+acf(MTS.ts)
+pacf(MTS.ts)
+
+```
+We can immediately see that all four series trend upwards. We observe that all autocorrelations are significant, as expected. We can see significant PACF values in select pairs of series - this suggests that the final VAR model will need to at least have an order of 2. We will difference the four series to see if we observe more statistically convenient behavior.
+
+```{r}
+plot(diff(MTS.ts))
+acf(diff(MTS.ts))
+pacf(diff(MTS.ts))
+```
+Differencing eliminates the positive drift from each of the series - which results in ACF plots that are more meaningful. We do not observe any obvious seasonality (evidenced by PACF charts of differenced and non-differenced series). We manually define one model and use the VARselect function to find the specification that minimizes AIC/BIC. We hold the final two years of data out for testing purposes.
+```{r}
+MTS.ts.train <- ts(MTS.ts[time(MTS.ts) < 2011, ], start=c(1947, 1), freq=12)
+MTS.ts.test <- ts(MTS.ts[time(MTS.ts) >= 2011, ], start=c(2011, 1), freq=12)
+
+VARselect(MTS.ts.train, lag.max=10, type="both")
+VARselect(diff(MTS.ts.train), lag.max=20, type="both")
+```
+We observe that including 7 lags for autoregression yields optimal AIC and FPE. We also observe that running Varselect on the differenced model shows that 14 lags yield optimal AIC and FPE. We will forecast using both specifications.
+```{r}
+#7,14 are autoselected, 1 and 1 seem reasonable from the iterative testing below.
+Varselect_model <- VAR(MTS.ts.train, p = 1, type="both")
+Varselect_diff_model <- VAR(diff(MTS.ts.train), p=1, type="both")
+
+raw_forecast <- forecast(Varselect_model,h=24)
+diff_forecast <- forecast(Varselect_diff_model, h=23)
+
+plot(raw_forecast)
+plot(diff_forecast)
+
+#assemble forecasts into multivariate timeseries for ease of visualization
+diff_forecast_ts_raw <- ts(cbind(raw_forecast$forecast$series1$mean,raw_forecast$forecast$series1$mean,raw_forecast$forecast$series1$mean,integrate_diff_4), start=c(2011, 1), freq=12)
+
+par(mfrow=c(2,2))
+ts.plot(diff_forecast_ts_raw[,1],MTS.ts.test[,1],col=c('blue','red'))
+ts.plot(diff_forecast_ts_raw[,2],MTS.ts.test[,2],col=c('blue','red'))
+ts.plot(diff_forecast_ts_raw[,3],MTS.ts.test[,3],col=c('blue','red'))
+ts.plot(diff_forecast_ts_raw[,4],MTS.ts.test[,4],col=c('blue','red'))
+
+#Rebuild diffs into forecast for diff case
+
+endvals <- tail(MTS.ts.train,n=1)
+
+integrate_diff_1 <- cumsum(c(endvals[1], diff_forecast$forecast$series1$mean))
+integrate_diff_2 <- cumsum(c(endvals[2],diff_forecast$forecast$series2$mean))
+integrate_diff_3 <- cumsum(c(endvals[3],diff_forecast$forecast$series3$mean))
+integrate_diff_4 <- cumsum(c(endvals[4],diff_forecast$forecast$series4$mean))
+
+diff_forecast_ts_diff <- ts(cbind(integrate_diff_1,integrate_diff_2,integrate_diff_3,integrate_diff_4), start=c(2011, 1), freq=12)
+
+par(mfrow=c(2,2))
+ts.plot(diff_forecast_ts_diff[,1],MTS.ts.test[,1],col=c('blue','red'))
+ts.plot(diff_forecast_ts_diff[,2],MTS.ts.test[,2],col=c('blue','red'))
+ts.plot(diff_forecast_ts_diff[,3],MTS.ts.test[,3],col=c('blue','red'))
+ts.plot(diff_forecast_ts_diff[,4],MTS.ts.test[,4],col=c('blue','red'))
+
+#calculate residuals in our test set for both diff and raw case
+test.residuals.raw <- as.numeric(MTS.ts.test) - diff_forecast_ts_raw
+plot(test.residuals.raw)
+
+test.residuals.diff <- as.numeric(MTS.ts.test) - diff_forecast_ts_diff
+plot(test.residuals.diff)
+```
+We will include tests for each of the models as well.
+```{r}
+serial.test(Varselect_model, type="PT.asymptotic")
+serial.test(Varselect_model, type="BG")
+normality.test(Varselect_model, multivariate.only = TRUE)
+
+serial.test(Varselect_diff_model, type="PT.asymptotic")
+serial.test(Varselect_diff_model, type="BG")
+normality.test(Varselect_diff_model, multivariate.only = TRUE)
+```
+We see that the specification from the VARselect functions yields results that fail each of the diagnostic tests. The statistically significant results of both the Breush-Godfrey and asymptotic Portmanteau tests prove that we cannot reject the null hypothesis that there is no serial autocorrelation of model residuals. The three tests in the normality.test are also all significant in both models: we reject the null hypothesis that our models yield normally distributed residuals. These results show that suggested specification from the VARselect function is inappropriate: we will search the parameter space to find a model that does not suffer these issues.
+
+```{r}
+#order iteration
+results_ND = c()
+results_D = c()
+orderrange = 1:15
+
+for(i in orderrange) {
+  Varselect_model_iter <- VAR(MTS.ts.train, p = i, type="both")
+  Varselect_diff_model_iter <- VAR(diff(MTS.ts.train), p = i, type="both")
+  
+  PT <- serial.test(Varselect_model_iter, type="PT.asymptotic")
+  BG <- serial.test(Varselect_model_iter, type="BG")
+  norm <- normality.test(Varselect_model_iter, multivariate.only = TRUE)
+  
+  results_ND = rbind(results_ND,cbind(AIC(Varselect_model_iter),BIC(Varselect_model_iter),
+                  PT$serial$p.value, BG$serial$p.value, norm$jb.mul$JB$p.value,
+                  norm$jb.mul$Skewness$p.value,norm$jb.mul$Kurtosis$p.value))
+  
+  PT <- serial.test(Varselect_diff_model_iter, type="PT.asymptotic")
+  BG <- serial.test(Varselect_diff_model_iter, type="BG")
+  norm <- normality.test(Varselect_diff_model_iter, multivariate.only = TRUE)
+  
+  results_D = rbind(results_D,cbind(AIC(Varselect_diff_model_iter),BIC(Varselect_diff_model_iter),
+                  PT$serial$p.value, BG$serial$p.value, norm$jb.mul$JB$p.value,
+                  norm$jb.mul$Skewness$p.value,norm$jb.mul$Kurtosis$p.value))
+}
+
+results_ND <- data.frame(results_ND)
+results_D <- data.frame(results_D)
+
+rownames(results_ND) <- rownames(results_D) <-orderrange
+colnames(results_D) <- colnames(results_ND) <- c('AIC','BIC','Portmanteau p-val','Breusch-Godfrey p-val','Normality - JB pval','Normality - Skewnesss pval','Normality - Kurtosis pval')
+
+results_ND
+results_D
+```
+In general, we can see that the differenced model has lower BIC values. In almost all cases, we reject the null hypothesis that residuals are not serially correlated and in all cases we reject the null hypothesis that the residuals are normally distributed. We do observe that higher order VAR models for both the differenced and non-differenced series lead to less certainty that there is serial correlation in the model residuals.
 ## Order Identification
 
 ## Model Creation
