@@ -1,8 +1,9 @@
 ---
-title: "Statistical Methods for Discrete Response, Time Series, and Panel Data (W271): Lab 3"
+title: 'Statistical Methods for Discrete Response, Time Series, and Panel Data (W271):
+  Lab 3'
 author: "Professor Jeffrey Yau"
 date: "March 18, 2018"
-geometry: margin = 0.75cm
+geometry: margin = 1 cm
 output:
   pdf_document: default
 ---
@@ -58,7 +59,7 @@ head(q1_ts)
 We see that there are no missing values and that we are working with quarterly time series data.  No anomalies are detected and there is not potential for top or bottom code. On gross visual inspection of the time series, we see that the starting values are all less than 1, with the later values all being greater than 7.  This leads us to already suspect we are not dealing with a stationary series.  We cannot make a confident comment on seasonality without further EDA for visualization.
 
 ### EDA
-```{r}
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
 plot.ts(q1_ts, main="Quarterly data of E-Commerce Retail Sales as a Percent of Total Sales", ylab="Percent of total sales", col='blue')
 ```
 We are now able to clearly see that our the e-commernce retail sales time series is not stationary and contains a strong seasonal component.
@@ -72,7 +73,7 @@ We are now able to clearly see that our the e-commernce retail sales time series
 ### Question 2: data_2018Spring_MTS.txt
 
 ### Load data
-```{r}
+```{r, out.width='.49\\linewidth', fig.width=5, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
 #df_q2 <- read.csv("correlate-flight_prices.csv", header = TRUE, sep=",")
 ```
 
