@@ -61,7 +61,7 @@ We see that there are no missing values and that we are working with quarterly t
 ```{r}
 plot.ts(q1_ts, main="Quarterly data of E-Commerce Retail Sales as a Percent of Total Sales", ylab="Percent of total sales", col='blue')
 ```
-We are not able to clearly see that our the e-commernce retail sales time series is not stationary and contains a strong seasonal component.
+We are now able to clearly see that our the e-commernce retail sales time series is not stationary and contains a strong seasonal component.
 
 ### Order Identification
 
