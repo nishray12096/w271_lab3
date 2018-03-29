@@ -1,0 +1,87 @@
+---
+title: "Statistical Methods for Discrete Response, Time Series, and Panel Data (W271): Lab 3"
+author: "Professor Jeffrey Yau"
+date: "March 18, 2018"
+geometry: margin = 0.75cm
+output:
+  pdf_document: default
+---
+\fontsize{8}{9.25}
+\selectfont
+
+******************************************************
+
+## Introduction
+
+<INSERT NARRATIVE>
+
+### Load packages set some formatting preferences
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Set digit print output to max desired
+options(digits=2)
+# Clean up the workspace before we begin
+rm(list = ls())
+# Load libraries
+library(car)
+library(dplyr)
+library(Hmisc)
+library(forecast)
+library(astsa)
+library(xts)
+library(vars)
+```
+
+```{r Pkg and Data Load, message = FALSE, warning=FALSE}
+pkg <- c('knitr', 'Hmisc', 'ggcorrplot', 'car',
+         'dplyr', 'ggplot2', 'jtools', 'readr')
+invisible(lapply(pkg, require, character.only = T))
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+### Question 1: E-Commerce Retail Sales as a Percent of Total Sales
+
+### Load data and quality-check
+```{r}
+# Load csv file as df
+df_q1 <- read.csv("ECOMPCTNSA.csv", header = TRUE, sep=",")
+str(df_q1)
+#View(df_q1)
+#names(df_q1)
+head(df_q1)
+describe(df_q1)
+# Create an R time-series object with our quarterly data starting with final quarter of 1999
+q1_ts <- ts(df_q1$ECOMPCTNSA, frequency = 4, start = c(1999,4))
+str(q1_ts)
+head(q1_ts)
+```
+We see that there are no missing values and that we are working with quarterly time series data.  No anomalies are detected and there is not potential for top or bottom code. On gross visual inspection of the time series, we see that the starting values are all less than 1, with the later values all being greater than 7.  This leads us to already suspect we are not dealing with a stationary series.  We cannot make a confident comment on seasonality without further EDA for visualization.
+
+### EDA
+```{r}
+plot.ts(q1_ts, main="Quarterly data of E-Commerce Retail Sales as a Percent of Total Sales", ylab="Percent of total sales", col='blue')
+```
+We are not able to clearly see that our the e-commernce retail sales time series is not stationary and contains a strong seasonal component.
+
+### Order Identification
+
+### Model Creation
+
+### Fit Evaluation
+
+### Question 2: data_2018Spring_MTS.txt
+
+### Load data
+```{r}
+#df_q2 <- read.csv("correlate-flight_prices.csv", header = TRUE, sep=",")
+```
+
+### EDA
+
+### Order Identification
+
+### Model Creation
+
+### Fit Evaluation
+
+## Conclusion
