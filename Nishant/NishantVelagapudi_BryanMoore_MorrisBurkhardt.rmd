@@ -102,14 +102,26 @@ pacf(AutoArima.test.Residuals)
 
 Box.test(AutoArima.test.Residuals, type="Ljung-Box")
 ```
-
+First, we hold out data after 2011 for testing purposes. We explore the cross-correlations between each of the four series as well as the PACFs between the four series. We also plot the ACF and PACF functions for each of these series individually.
 ```{r}
 #Question 2
+MTS.ts.train <- ts(MTS.ts[time(MTS.ts) < 2011, ], start=c(1947, 1), freq=12)
+MTS.ts.test <- ts(MTS.ts[time(MTS.ts) >= 2011, ], start=c(2011, 1), freq=12)
+
 plot(MTS.ts)
 
 acf(MTS.ts)
 pacf(MTS.ts)
 
+par(mfrow=c(2,2))
+for(i in 1:4){
+  acf(MTS.ts.train[,i])
+}
+
+par(mfrow=c(2,2))
+for(i in 1:4){
+  pacf(MTS.ts.train[,i])
+}
 ```
 We can immediately see that all four series trend upwards. We observe that all autocorrelations are significant, as expected. We can see significant PACF values in select pairs of series - this suggests that the final VAR model will need to at least have an order of 2. We will difference the four series to see if we observe more statistically convenient behavior.
 
@@ -120,17 +132,14 @@ pacf(diff(MTS.ts))
 ```
 Differencing eliminates the positive drift from each of the series - which results in ACF plots that are more meaningful. We do not observe any obvious seasonality (evidenced by PACF charts of differenced and non-differenced series). We manually define one model and use the VARselect function to find the specification that minimizes AIC/BIC. We hold the final two years of data out for testing purposes.
 ```{r}
-MTS.ts.train <- ts(MTS.ts[time(MTS.ts) < 2011, ], start=c(1947, 1), freq=12)
-MTS.ts.test <- ts(MTS.ts[time(MTS.ts) >= 2011, ], start=c(2011, 1), freq=12)
-
 VARselect(MTS.ts.train, lag.max=10, type="both")
 VARselect(diff(MTS.ts.train), lag.max=20, type="both")
 ```
 We observe that including 7 lags for autoregression yields optimal AIC and FPE. We also observe that running Varselect on the differenced model shows that 14 lags yield optimal AIC and FPE. We will forecast using both specifications.
 ```{r}
 #7,14 are autoselected, 1 and 1 seem reasonable from the iterative testing below.
-Varselect_model <- VAR(MTS.ts.train, p = 1, type="both")
-Varselect_diff_model <- VAR(diff(MTS.ts.train), p=1, type="both")
+Varselect_model <- VAR(MTS.ts.train, p = 3, type="both")
+Varselect_diff_model <- VAR(diff(MTS.ts.train), p=3, type="both")
 
 raw_forecast <- forecast(Varselect_model,h=24)
 diff_forecast <- forecast(Varselect_diff_model, h=23)
@@ -139,7 +148,7 @@ plot(raw_forecast)
 plot(diff_forecast)
 
 #assemble forecasts into multivariate timeseries for ease of visualization
-diff_forecast_ts_raw <- ts(cbind(raw_forecast$forecast$series1$mean,raw_forecast$forecast$series1$mean,raw_forecast$forecast$series1$mean,integrate_diff_4), start=c(2011, 1), freq=12)
+diff_forecast_ts_raw <- ts(cbind(raw_forecast$forecast$series1$mean,raw_forecast$forecast$series2$mean,raw_forecast$forecast$series3$mean,raw_forecast$forecast$series4$mean), start=c(2011, 1), freq=12)
 
 par(mfrow=c(2,2))
 ts.plot(diff_forecast_ts_raw[,1],MTS.ts.test[,1],col=c('blue','red'))
@@ -170,6 +179,9 @@ plot(test.residuals.raw)
 
 test.residuals.diff <- as.numeric(MTS.ts.test) - diff_forecast_ts_diff
 plot(test.residuals.diff)
+
+summary(Varselect_model)
+summary(Varselect_diff_model)
 ```
 We will include tests for each of the models as well.
 ```{r}
