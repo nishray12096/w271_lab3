@@ -7,7 +7,7 @@ geometry: margin = 1 cm
 output:
   pdf_document: default
 ---
-\fontsize{8}{9.25}
+\fontsize{9}{10}
 \selectfont
 
 ******************************************************
@@ -67,7 +67,7 @@ We see that there are no missing values and that we are working with quarterly t
 q1_ts_train <- q1_ts[time(q1_ts) >= 1999 & time(q1_ts) < 2016]
 q1_ts_train <- ts(q1_ts_train, frequency = 4, start = c(1999,4))
 q1_ts_test <- q1_ts[time(q1_ts) >= 2016]
-q1_ts_test <- ts(q1_ts_test, frequency = 12, start = c(2016,1))
+q1_ts_test <- ts(q1_ts_test, frequency = 4, start = c(2016,1))
 # Plot the training data
 plot.ts(q1_ts_train, main="Quarterly data of E-Commerce Retail Sales as a Percent of Total Sales", ylab="Percent of total sales", col='blue')
 ```
@@ -82,15 +82,56 @@ acf(q1_ts_train, main="Autocorrelation function", lag.max = 24)
 pacf(q1_ts_train, main="Partial Autocorrelation function", lag.max = 24)
 ```
 
-Although it has been dictated that we are to create a SARIMA model, we still need to check that this model is appropriate.We see that the autocorrelations are significant for a large number of lag (16 quarters). This slow decay in the autocorrelations is evidence of a trend in the data, thus telling us that the time series is not stationary. We see that the partial autocorrelation plot has a significant spike at a lag of 1 quarter and at 4 quarters.  We see that our PACF has a somewhat abrupt drop-off non-seasonally following lag-1 and but that there are spikes in the PACF at an annual lag (multiples of lag-4 given our quarterly data).  This leads us to believe that our model will not require a non-seasonal MA term q but will require a seasonal MA term Q.  The histogram of our data shows that the e-commerce as percentage of total sales is fairly normally distributed withpositive skew; however, this tells us nothing about how the data are related in time.
+Although it has been dictated that we are to create a SARIMA model, we still need to check that this model is appropriate.We see that the autocorrelations are significant for a large number of lag (16 quarters). This slow decay in the autocorrelations is evidence of a trend in the data, thus telling us that the time series is not stationary. The gradual decay without any spikes at seasonal intervals tells us that we will need a non-seasonal AR term p but will not need a seasonal AR term P.
+We see that the partial autocorrelation plot has a significant spike at a lag of 1 quarter and at 4 quarters.  We see that our PACF has a somewhat abrupt drop-off non-seasonally following lag-1 and but that there are spikes in the PACF at an annual lag (multiples of lag-4 given our quarterly data).  This leads us to believe that our model will not require a non-seasonal MA term q but will require a seasonal MA term Q.  The histogram of our data shows that the e-commerce as percentage of total sales is fairly normally distributed withpositive skew; however, this tells us nothing about how the data are related in time.
 
 #### Difference the data to impose stationarity
+We have demonstrated evidence of both trend and seasonality in our time series.  To impose stationarity, we will first apply a seasonal difference to the data and then re-evaluate the trend.  If a trend remains, then  we will take first differences.
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
+# Impose seasonal difference at one-year (4 quarters)
+q1_ts_train_seasonal_diff = diff(q1_ts_train,4)
+plot.ts(q1_ts_train_seasonal_diff, main="Quarterly E-Commerce Sales as % Total Sales- Seasonal Difference", ylab="Percent of total sales", col='green')
+acf(q1_ts_train_seasonal_diff, main="Autocorrelation function", lag.max = 24)
+pacf(q1_ts_train_seasonal_diff, main="Partial Autocorrelation function", lag.max = 24)
+# Impose additional first-difference
+q1_ts_train_seasonal_and_first_diff = diff(q1_ts_train_seasonal_diff,1)
+plot.ts(q1_ts_train_seasonal_and_first_diff, main="Quarterly E-Commerce Sales as % Total Sales- Seasonal & First Difference", ylab="Percent of total sales", col='red')
+acf(q1_ts_train_seasonal_and_first_diff, main="Autocorrelation function", lag.max = 24)
+pacf(q1_ts_train_seasonal_and_first_diff, main="Partial Autocorrelation function", lag.max = 24)
+```
 
-
+After creating a seasonal-differenced series, the series still appears to be non-stationary. For stationary time series, the ACF drops to zero relatively quickly, while for non-stationary data the ACF decreases slowly.  We see improvement here as compared to out initial non-differenced model, but we have still not imposed stationarity.  This provides evidence that we need to impose a first-difference. After taking a first-difference we see that the seasonal-differenced and first-differenced series is stationary.  Overall we do not see evidence that the volatility is increasing over time, so we do not take a difference in log to stabilize the series.
 
 ### Order Identification
+The spike in the ACF at a lag of 1 quarter suggests a nonseasonal MA(1) (q=1) component and the spikes at intervals of 4 quarters of lag suggest a seasonal MA(1) (Q=1).  Additionally, the spike at at a lag of 1 quarter in the PACF and the spikes at intervals of 4 quarters of lag tells us that a a nonseasonal AR(1) (p=1) component and a seasonal AR(1) (P=1) component are appropriate for our initial model.  Therefore, our initial model will be of the form $ARIMA(1,1,1)(1,1,1)_4$
 
 ### Model Creation: Build a Seasonal ARIMA model and generate quarterly forecast for 2017
+We first start by building a model with our estimated components from our prior analysis.  Next, we will see if an interative method comparing difference combinations of component values as well as the auto.arima function all agree with our model having the lowest AIC/BIC.
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
+q1_ts_train_seasonal_and_first_diff.fit <- Arima(q1_ts_train_seasonal_and_first_diff, order=c(1,1,1), seasonal=c(1,1,1))
+summary(q1_ts_train_seasonal_and_first_diff.fit)
+plot.ts(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Baseline Model Residuals vs Time", ylab="Residual", col='black')
+hist(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Frequency Distribution of Baseline Model Residuals", xlab="Residual")
+acf(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Autocorrelation function", lag.max = 24)
+pacf(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Partial Autocorrelation function", lag.max = 24)
+shapiro.test(q1_ts_train_seasonal_and_first_diff.fit$resid)
+qqnorm(q1_ts_train_seasonal_and_first_diff.fit$resid)
+qqline(q1_ts_train_seasonal_and_first_diff.fit$resid)
+Box.test(q1_ts_train_seasonal_and_first_diff.fit$resid, type = "Ljung-Box")
+```
+<Narrative on the baseline model>
+
+Now we will look at other values for p,d,q,P,D,Q via an iterative method.
+```{r}
+
+```
+<Narrative on iterative method>
+
+Lastly, we look at the auto.arima function to see if it agrees with our model thus far.
+```{r}
+
+```
+<Narrative on auto.arima>
 
 ### Fit Evaluation
 
