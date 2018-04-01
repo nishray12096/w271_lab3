@@ -5,18 +5,327 @@ date: "March 19, 2018"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+
+```{r}
+library(forecast)
+library(tseries)
+library(GGally)
 ```
 
-## Introduction
 
-## EDA
+# Question 1
 
-## Order Identification
+*ECOMPCTNSA.csv*, contains quarterly data of E-Commerce Retail Sales as a Percent of Total Sales. The data can be found at: https://fred.stlouisfed.org/series/ECOMPCTNSA.
 
-## Model Creation
+Build a Seasonal ARIMA model and generate quarterly forecast for 2017. Make sure you use all the steps of building a univariate time series model between lecture 6 and 9, such as checking the raw data, conducting a thorough EDA, justifying all modeling decisions (including transformation), testing model assumptions, and clearly articulating why you chose your given model. Measure and discuss your model's performance. Use both in-sample and out-of-sample model performance. When training your model, exclude the series from 2015 and 2016. For the out-of-sample forecast, measure your model's performance in forecasting the quarterly E-Commerce retail sales in 2015 and 2016. Discuss the model performance. Also forecast beyond the observed time-period of the series. Specifically, generate quarterly forecast for 2017.
 
-## Fit Evaluation
 
-## Conclusion
+```{r}
+ecom = read.csv(file = "ECOMPCTNSA.csv")
+head(ecom)
+```
+
+Create time series object and split test and train set. We will continue to examine only the train data set.
+
+```{r}
+ts_ecom = ts(ecom$ECOMPCTNSA, start = c(1999, 4), frequency = 4)
+
+ts_ecom_train = ts(ts_ecom[time(ts_ecom) < 2015], start = c(1999, 4), freq = 4)
+ts_ecom_test = ts(ts_ecom[time(ts_ecom) >= 2015], start = c(2015, 1), freq = 4)
+
+head(ts_ecom_train, 13)
+```
+
+# EDA
+
+First, let us check for missing values:
+
+```{r}
+sum(is.na(ts_ecom_train))
+```
+
+We do not have any missing values.
+
+Next, let us take a look at the summary.
+
+```{r}
+summary(ts_ecom_train)
+```
+
+The time series ranges from 0.7 to 9.5 with a mean of about 3.8 and median of 3.6.
+
+Let us look at a plot of the time series.
+
+```{r}
+plot(ts_ecom_train, xlab = 'Date', ylab = 'E-Commerce Retail Sales as a % of Total Sales', main = 'E-commerce Sales from Q4/1999 to Q3/2016')
+```
+
+Our time series has a deterministic trend and seasonality.
+
+As the time series increases in magnitude, the seasonal variation increases as well ==> Multiplicative structure... Note: Decomposition model for log is additive: log[x_t] = m_t + s_t + z_t.
+
+Let us take a look at a histogram of our time series.
+
+```{r}
+hist(ts_ecom_train, breaks = 15)
+```
+
+### ACF and PACF
+
+Let us look at the autocorrelation and partial autocorrelation function (acf and pacf).
+
+```{r}
+acf(ts_ecom_train)
+pacf(ts_ecom_train)
+```
+
+The ACF graph shows significant autocorrelation until lag 17. The PACF graph shows no significant spikes, but has a dampening wavy pattern - which is a sign for (the obviously existing) seasonality.
+
+
+### Seasonality
+
+Let us plot a moving average of order 4 into the time series graph.
+
+```{r}
+trend_ts_ecom_train = ma(ts_ecom_train, order = 4, centre = T)
+plot(ts_ecom_train)
+lines(trend_ts_ecom_train, col = 'green')
+```
+
+As expected, the moving average smoothing completely removes the seasonality.
+
+### Trend
+
+To remove the trend, we will first try order 1 differencing of the log of the time series.
+
+```{r}
+plot(diff(ts_ecom_train, lag = 1))
+```
+
+Differencing the original time series helped with detrending, but the variance is growing with time - higher lags improve the situation but the result is still not optimal. This is not surprising, as the time series seems to follow a multiplicative decomposition model. 
+
+We will therefore try differencing the log of the time series. The log of a 'multiplicative' time series has the structure of an additive decomposition model. 
+
+```{r}
+log_ts_ecom_train = log(ts_ecom_train)
+log_ts_ecom_test = log(ts_ecom_test)
+
+plot(diff(log_ts_ecom_train, lag = 1))
+```
+
+This looks much better! The trend seems to be completely removed and the varianceseems pretty similar - there might be a slight increase towards the end of the time series.
+
+Let us look at the decomposition of the time series.
+
+First, let us plot the multiplicative decomposition of the original time series. 
+
+```{r}
+plot(decompose(ts_ecom_train, type = 'multiplicative'))
+```
+
+Next, let us plot the additive decomposition of the log of the time series.
+
+```{r}
+plot(decompose(log_ts_ecom_train))
+```
+
+In the following, we will generally work with the log of the time series.
+
+### Autocorrelation
+
+Let us take a look at the acf and pacf of the log of the time series.
+
+```{r}
+acf(log_ts_ecom_train)
+pacf(log_ts_ecom_train)
+```
+
+The ACF graph shows significant, yet slowly decreasing autocorrelation up to lag 17. The seasonal variation is not evident in the ACF.
+
+The PACF graph shows no significant spikes, but has a dampening wavy pattern - which is a sign for (the obviously existing) seasonality.
+
+Let us also look at acf and pacf of the order 1 differenced log transformed series.
+
+```{r}
+acf(diff(log_ts_ecom_train, lag = 1))
+pacf(diff(log_ts_ecom_train, lag = 1))
+```
+
+The ACF is somewhat sinusoidal and the PACF has no significant spikes for lag 2, 3 and 4.
+
+# Modelling
+
+### Automated model selection
+
+Let us first try the auto arima function. Instead of passing the log transformed time series, we will work with lambda, to later easily reverse transform the forecast.
+
+```{r}
+arima_model_auto = auto.arima(ts_ecom_train, ic = 'aicc', lambda = 0)
+arima_model_auto
+```
+
+The auto.arima() function finds ARIMA(0,1,0)(2,1,0)[4] as the best model.
+
+### Manual model selection
+
+The ACF is somewhat sinusoidal and the PACF has no significant spikes beyond lag 4. Therefore - if we were not to model seasonality - an ARIMA (0,1,4) might be appropriate.
+
+```{r}
+arima_model_manual = arima(log_ts_ecom_train, order = c(0,1,4))
+arima_model_manual
+```
+
+Including seasonality adds a lot of possible parameter combinations to our model.  We are aware that differencing at lag 4 (that is our seasonality period) will remove a linear trend. So we need to make a choice of whether or not to include lag 1 differencing.
+
+
+The AIC that was found using auto.arima is significantly lower!
+
+### Forecasting
+
+Let us forecast 7 steps, from Q1 2015 to Q4 2016
+
+```{r warning=FALSE}
+forecast_auto = forecast(arima_model_auto, h = 8, lambda = 0)
+plot(forecast_auto)
+lines(ts_ecom_test, col='green')
+```
+
+Next, let us train the model on all our data and forecast from Q1 2017 to Q4 2020. We are especially interested in the 2017 forecasts.
+
+```{r warning=FALSE}
+arima_model_auto_full = auto.arima(ts_ecom, ic = 'aicc', lambda = 0)
+arima_model_auto_full
+
+plot(forecast(arima_model_auto_full, h = 16, lambda = 0))
+```
+
+Let us take a look at the residuals. First, we plot some graphs.
+
+```{r}
+plot(arima_model_auto_full$residuals)
+acf(arima_model_auto_full$residuals)
+qqnorm(y = arima_model_auto_full$residuals)
+```
+
+Finally, we will test the randomness of the residuals, using a Portmanteau Test (specifically, a Ljung-Box Test).
+
+We are testing the null hypothesis $H_0$, that the residuals are independently distributed against the alternative hypothesis $H_a$, that the residuals are not independently distributed.
+
+```{r}
+Box.test(arima_model_auto_full$residuals, type="Ljung-Box")
+```
+
+We fail to reject the null hypothesis. This gives us confidence, that the models residuals are indeed random. 
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+# Question 2
+You will use the series contained in *data_2018Spring_MTS.txt* to conduct a multivariate time series analysis.  These series could be completely decoupled or interdependent of each other. Your task is to conduct a multivariate time series analysis and build a model to forecast the series in 1993 and 1994. In model estimation, do not use the observations in 1993. All the model building steps covered in lecture 6 - 10 are applicable. 
+
+As always, checking the raw data, conducting a thorough EDA, justifying all modeling decisions (including transformation), testing model assumptions, and clearly articulating why you choose your final model. Measure and discuss your model's performance. Use both in-sample and out-of-sample model performance. When training your model, exclude all the observations in 1993. For the out-of-sample forecast, measure your model's performance in forecasting 1993. Discuss the model performance. Also forecast beyond the observed time-period of the series. Specifically, generate a 12-month forecast beyond the last observed month in the given series.
+
+
+Let us first read the data set.
+
+```{r}
+mts = read.csv(file = "data_2018Spring_MTS.txt", sep=' ')
+head(mts)
+```
+
+Let us again split into test and train data:
+
+```{r}
+ts_mts = ts(mts[ , c("series1", "series2", "series3", "series4")], start = c(1947, 1), freq = 12)
+
+ts_mts_train = ts(ts_mts[time(ts_mts) < 1993, ], start = c(1947, 1), freq = 12)
+ts_mts_test = ts(ts_mts[time(ts_mts) >= 1993, ], start = c(1993, 1), freq = 12)
+
+head(ts_mts_train)
+head(ts_mts_test)
+```
+
+First, let us look at a scatterplot matrix.
+
+```{r}
+df_mts_train = data.frame(as.matrix(ts_mts_train), date=time(ts_mts_train))
+
+ggpairs(df_mts_train[c('series1', 'series2', 'series3', 'series4')], title='Pairwise Scatterplot of series1, series2, series3 and series4')
+```
+
+Next, let us plot the time series training data.
+
+```{r}
+plot(ts_mts_train)
+```
+
+All the time series seem to have a common deterministic trend. The stochastic trend also seems to be similar between the four time series - just different in magnitude, with series1 having the strongest stochastic trend, followed by series4, series3 and then series2.
+
+Let us run a Dickey-Fuller Tests to test for unit roots.
+
+```{r}
+adf.test(df_mts_train$series1)
+adf.test(df_mts_train$series2)
+adf.test(df_mts_train$series3)
+adf.test(df_mts_train$series4)
+```
+
+For series4, we reject the null hypothesis of non-stationarity. For all the other time series we fail to reject the null hypothesis.
+
+==> Only series4 is likely to be stationary. All the other series are likely to contain unit roots!!
+
+Next, let us test for cointegration.
+
+```{r}
+po.test(df_mts_train[c('series1', 'series2')])$p.value
+po.test(df_mts_train[c('series1', 'series3')])$p.value
+po.test(df_mts_train[c('series1', 'series4')])$p.value
+po.test(df_mts_train[c('series2', 'series3')])$p.value
+po.test(df_mts_train[c('series2', 'series4')])$p.value
+po.test(df_mts_train[c('series3', 'series4')])$p.value
+```
+
+In a few cases we reject the null hypothesis. In those cases, it is likely that our time series are cointegrated. This means, we would be able to fit a linear regression between both time series... ?!
+
+
+
+Next, let us look at acf and pacf.
+
+```{r}
+acf(ts_mts_train)
+pacf(ts_mts_train)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
