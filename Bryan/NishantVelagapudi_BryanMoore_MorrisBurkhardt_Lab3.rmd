@@ -229,7 +229,7 @@ q1_ts_pred_2017
 ```
 <Yau actually does this by going back and creating a model from the entire initial ts, not by simply extending the forecasts from the train ts further into the future. Approach regarding new model with entire ts vs extending our train model forecast?>
 
-We see that the quarterly forecasted percentages of E-commerce sales of total sales are .5, 8.3, 8.5, and 10.3.
+We see that the quarterly forecasted percentages of E-commerce sales of total sales are 8.5, 8.3, 8.5, and 10.3.
 
 ### Question 2: data_2018Spring_MTS.txt
 
