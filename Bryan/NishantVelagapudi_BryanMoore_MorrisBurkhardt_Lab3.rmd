@@ -191,17 +191,45 @@ Overall the variance is not increasing over time. The histogram of our residuals
 We already looked at the in-sample performance of our candidate models by looking at their residuals.  Our "iterative" SARIMA model $ARIMA(0,1,1)(1,1,2)_4$ had the lowest AIC at -93.  Our baseline model $ARIMA(1,1,1)(1,1,1)_4$ had the highest AIC at -78. Our auto-arim model $ARIMA(0,1,1)(0,1,0)_4$ had an intermediate AIC at -81.
 Now, we look at the out-of-sample performance of our candidate models by forecasting the quarterly retail sales in 2015 and 2016.  We will determine which model has the lowest forecasting error.
 ```{r, out.width='.49\\linewidth', fig.width=5, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
-# Out-of-sample performance: Forecasting the quarterly E-Commerce retail sales in 2015 and 2016
-
-
+# Out-of-sample performance: Forecasting the quarterly E-Commerce retail sales in 2015 and 2016 with our models
+# There are 8 observations in the test set (2015-2016), thus we generate an 8-step ahead forecast from the training set.
+library(forecast)
+library(tseries)
+forecast_base <- forecast(q1_ts_train.fit, h = 8)
+plot(forecast_base)
+forecast_it <- forecast(q1_ts_train_it.fit, h = 8)
+plot(forecast_it)
+forecast_auto <- forecast(q1_ts_train_auto.fit, h = 8)
+plot(forecast_auto)
+#Calculate RMSE
+compare.forecast.df <- data.frame(forecast_base = forecast_base$mean,
+                                  forecast_it = forecast_it$mean,
+                                  forecast_auto = forecast_auto$mean,
+                                  testdata = q1_ts_test)
+# Calculate RMSE
+calculate_rmse <- function(fcast, test){
+  rmse <- sqrt(mean((fcast - test)^2))
+}
+print(calculate_rmse(compare.forecast.df$forecast_base, compare.forecast.df$testdata))
+print(calculate_rmse(compare.forecast.df$forecast_it, compare.forecast.df$testdata))
+print(calculate_rmse(compare.forecast.df$forecast_auto, compare.forecast.df$testdata))
 ```
-
+We see that model dictated by the auto-arim method $ARIMA(0,1,1)(0,1,0)_4$ actually has the lowest RMSE despite not having the lowest AIC of the three models.  Lower values of RMSE indicate better fit, seen here as the lowest forecasting error for the out-of-sample data from 2015-2016.  Thus, we choose $ARIMA(0,1,1)(0,1,0)_4$ as our model to forecast for 2017.
 
 ```{r, out.width='.49\\linewidth', fig.width=5, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
-# Forecast beyond the observed time-period of the series: generate quarterly forecast for 2017
-
-
+#Forecast beyond the observed time-period of the series: generate quarterly forecast for 2017
+#Given the AR and MA components in our model, we cannot hold-out 2015-2016 in predicting 2017.  Therefore we need to use the auto.arima again to generate a predictive model for 2017 using our entire initial time series through 2016.
+auto.arima(q1_ts, seasonal=TRUE)
+q1_ts_auto.fit <- Arima(q1_ts, order=c(0,1,1), seasonal=c(0,1,0))
+q1_ts_pred_2017 <- predict(q1_ts_auto.fit, n.ahead = 4, ci = 0.95)
+q1_ts_pred_2017
+# Alternate [INCORRECT] method: Extend train model another 4 quarters into 2017
+#q1_ts_train_pred_2017 <- predict(q1_ts_train_auto.fit, n.ahead = 12, ci = 0.95)
+#q1_ts_train_pred_2017
 ```
+<Yau actually does this by going back and creating a model from the entire initial ts, not by simply extending the forecasts from the train ts further into the future. Approach regarding new model with entire ts vs extending our train model forecast?>
+
+We see that the quarterly forecasted percentages of E-commerce sales of total sales are .5, 8.3, 8.5, and 10.3.
 
 ### Question 2: data_2018Spring_MTS.txt
 
