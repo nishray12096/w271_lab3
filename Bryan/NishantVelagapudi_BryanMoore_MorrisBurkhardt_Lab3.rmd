@@ -235,10 +235,30 @@ We see that the quarterly forecasted percentages of E-commerce sales of total sa
 
 ### Load data
 ```{r, out.width='.49\\linewidth', fig.width=5, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
-#df_q2 <- read.csv("correlate-flight_prices.csv", header = TRUE, sep=",")
+# Load txt file as df
+df_q2 <- read.table("data_2018Spring_MTS.txt", header = TRUE)
+#View(df_q2)
+head(df_q2)
+describe(df_q2)
+# Create R time-series objects with our monthly data starting with January 1947
+q2_ts_series1 <- ts(df_q2$series1, frequency = 12, start = c(1947,1))
+q2_ts_series2 <- ts(df_q2$series2, frequency = 12, start = c(1947,1))
+q2_ts_series3 <- ts(df_q2$series3, frequency = 12, start = c(1947,1))
+q2_ts_series4 <- ts(df_q2$series4, frequency = 12, start = c(1947,1))
 ```
+We see that there are no missing values and that we are working with monthly time series data.  No anomalies are detected and there is not potential for top or bottom code.
 
 ### EDA
+#### Plot the data
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
+# For modeling purposes we keep data between 1947 and the end of 1991 as our training data; we hold-out 1992 as test data
+#q1_ts_train <- q1_ts[time(q1_ts) >= 1999 & time(q1_ts) < 2015]
+#q1_ts_train <- ts(q1_ts_train, frequency = 4, start = c(1999,4))
+#q1_ts_test <- q1_ts[time(q1_ts) >= 2015]
+#q1_ts_test <- ts(q1_ts_test, frequency = 4, start = c(2015,1))
+# Plot the training data
+#plot.ts(q1_ts_train, main="Quarterly data of E-Commerce Retail Sales as a Percent of Total Sales", ylab="Percent of total sales", col='blue')
+```
 
 ### Order Identification
 
