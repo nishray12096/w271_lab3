@@ -117,27 +117,54 @@ summary(q1_ts_train_seasonal_and_first_diff.fit)
 plot.ts(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Baseline Model Residuals vs Time", ylab="Residual", col='black')
 hist(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Frequency Distribution of Baseline Model Residuals", xlab="Residual")
 acf(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Autocorrelation function", lag.max = 24)
-pacf(q1_ts_train_seasonal_and_first_diff.fit$resid, main="Partial Autocorrelation function", lag.max = 24)
 shapiro.test(q1_ts_train_seasonal_and_first_diff.fit$resid)
 qqnorm(q1_ts_train_seasonal_and_first_diff.fit$resid)
 qqline(q1_ts_train_seasonal_and_first_diff.fit$resid)
 Box.test(q1_ts_train_seasonal_and_first_diff.fit$resid, type = "Ljung-Box")
 ```
-<Narrative on the baseline model>
+We see that our baseline $ARIMA(1,1,1)(1,1,1)_4$ model generates an AIC of -78. We conduct a Shapiro-Wilk normality test for our residuals, which shows that we fail to reject the null hypothesis that the population from which our residuals are derived is normal.  We also conduct a Box-Ljung test. The p-value is large, which means we do not suspect that there is non-zero autocorrelation within the lags.
+Looking at the plot of the residuals, we see that the variance is increased somewhat at the center of the plot but that overall the variance is not increasing over time. The histogram of our residuals shows a normal distirbution.  Looking at the ACF plot, we do not see evidence of autocorrelation in the residuals, which suggests that there is not information that has not been accounted for in the model. Our Q-Q plot supports that our residuals are normally distributed.
 
 Now we will look at other values for p,d,q,P,D,Q via an iterative method.
-```{r}
-
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
+mod_AIC <- 0
+for(P in 0:2){
+  for(Q in 0:2){
+    for(D in 0:1){
+      for(p in 0:2){
+        for(q in 0:2){
+          for(d in 0:1){
+            mod <- Arima(q1_ts_train_seasonal_and_first_diff, order = c(p,d,q),
+                    seasonal = list(order = c(P,D,Q),4),
+                    method = "ML")
+            if (mod$aic<mod_AIC){
+            mod_AIC <- mod$aic
+            best_params <- c(p,d,q,P,D,Q)
+      }
+          }
+        }
+      }
+    }
+  }
+}
+print(c(best_params, mod_AIC))
 ```
-<Narrative on iterative method>
+Interestingly, our iterative method to determine the values of p,d,q,P,D,Q in our SARIMA model that are associated with the lowest AIC value tells us that the model with the lowest AIC is $ARIMA(0,0,1)(1,0,2)_4$.  We will proceed with the auto-arima() function to also provide evidence for the order of the model.
+
+<Take this out after discussing with Morris and Nishant. Need if using auto.arima?>
 
 Lastly, we look at the auto.arima function to see if it agrees with our model thus far.
-```{r}
-
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
+auto.arima(q1_ts_train_seasonal_and_first_diff, seasonal=TRUE, D=1, d=1)
 ```
-<Narrative on auto.arima>
+We see that the auto.arima function has determined that the model, as evaluated with stepwise argument on, that yields the lowest AIC is the same as our initial model proposed after our EDA.
+
+<GO WITH MY MODEL VS ITERATIVE BEST MODEL?>
+
+<Is imposing the order of first-differencing with d=1 and imposing the order of seasonal-differencing with D=1 actually causing us to model second-order differencing? This would not make sense given we are modeling first-order differencing in our baseline model, and the AIC is the same for the two.  Would likely need to look at the source code for auto.arima() or ask Yau to really find out.>
 
 ### Fit Evaluation
+<Using baseline and auto.arima generated model. Can change after discussing with team.>
 
 ### Question 2: data_2018Spring_MTS.txt
 
