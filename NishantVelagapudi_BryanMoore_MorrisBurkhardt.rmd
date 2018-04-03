@@ -7,6 +7,10 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+pkg <- c('knitr', 'Hmisc', 'ggcorrplot', 'car','xts','forecast',
+         'dplyr', 'ggplot2', 'jtools', 'readr', 'astsa', 'vars', 'dplyr')
+invisible(lapply(pkg, require, character.only = T))
 ```
 
 # E-Commerce Retail Sales as a Percentage of Total Sales
