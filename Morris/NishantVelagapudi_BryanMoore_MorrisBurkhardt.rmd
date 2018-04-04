@@ -11,6 +11,7 @@ output: pdf_document
 library(forecast)
 library(tseries)
 library(GGally)
+library(vars)
 ```
 
 
@@ -249,7 +250,7 @@ Let us again split into test and train data:
 ts_mts = ts(mts[ , c("series1", "series2", "series3", "series4")], start = c(1947, 1), freq = 12)
 
 ts_mts_train = ts(ts_mts[time(ts_mts) < 1993, ], start = c(1947, 1), freq = 12)
-ts_mts_test = ts(ts_mts[time(ts_mts) >= 1993, ], start = c(1993, 1), freq = 12)
+ts_mts_test = ts(ts_mts[time(ts_mts) >= 1993, ], start = c(1993, 1), end = c(1993,12), freq = 12)
 
 head(ts_mts_train)
 head(ts_mts_test)
@@ -263,39 +264,45 @@ df_mts_train = data.frame(as.matrix(ts_mts_train), date=time(ts_mts_train))
 ggpairs(df_mts_train[c('series1', 'series2', 'series3', 'series4')], title='Pairwise Scatterplot of series1, series2, series3 and series4')
 ```
 
+All the series are highly correlated (>0.95). High correlation however does not imply a causal relationship between the variables. Since we have no further information about the variables, we are unable to speculate on wheter or not this could be attributed to a common exogenous factor.
+
 Next, let us plot the time series training data.
 
 ```{r}
 plot(ts_mts_train)
 ```
 
-All the time series seem to have a common deterministic trend. The stochastic trend also seems to be similar between the four time series - just different in magnitude, with series1 having the strongest stochastic trend, followed by series4, series3 and then series2.
+All the time series seem to have a common deterministic trend. The stochastic trend also seems to be similar between the four time series - just different in magnitude. series1 has the strongest stochastic trend, followed by series4, series3 and series2.
 
 Let us run a Dickey-Fuller Tests to test for unit roots.
+Null hypothesis: Series contains unit roots (non-stationary stochastic trend).
+Alternative hypothesis: Series containts no unit roots (stationary stochastic trend).
 
 ```{r}
-adf.test(df_mts_train$series1)
-adf.test(df_mts_train$series2)
-adf.test(df_mts_train$series3)
-adf.test(df_mts_train$series4)
+adf.test(df_mts_train$series1)$p.value
+adf.test(df_mts_train$series2)$p.value
+adf.test(df_mts_train$series3)$p.value
+adf.test(df_mts_train$series4)$p.value
 ```
 
 For series4, we reject the null hypothesis of non-stationarity. For all the other time series we fail to reject the null hypothesis.
 
-==> Only series4 is likely to be stationary. All the other series are likely to contain unit roots!!
+==> According to the test, only the stochastic trend of series4 is likely to be stationary. All the other series are likely to contain unit roots!!
 
 Next, let us test for cointegration.
 
 ```{r}
-po.test(df_mts_train[c('series1', 'series2')])$p.value
-po.test(df_mts_train[c('series1', 'series3')])$p.value
-po.test(df_mts_train[c('series1', 'series4')])$p.value
-po.test(df_mts_train[c('series2', 'series3')])$p.value
-po.test(df_mts_train[c('series2', 'series4')])$p.value
-po.test(df_mts_train[c('series3', 'series4')])$p.value
+po.test(df_mts_train[c('series1','series2')])$p.value
+po.test(df_mts_train[c('series1','series3')])$p.value
+po.test(df_mts_train[c('series1','series4')])$p.value
+po.test(df_mts_train[c('series2','series3')])$p.value
+po.test(df_mts_train[c('series2','series4')])$p.value
+po.test(df_mts_train[c('series3','series4')])$p.value
 ```
 
-In a few cases we reject the null hypothesis. In those cases, it is likely that our time series are cointegrated. This means, we would be able to fit a linear regression between both time series... ?!
+In a few cases we reject the null hypothesis (series1 with series2 and series1 with series4 and series2 with series4). In those cases it is likely that our time series are cointegrated. This means, we would be able to fit a linear regression between both time series. 
+
+Since some of the series are cointegrated, we should be using a VAR specification that includes an error correction mechanism (vector error correction model) and alternative estimation methods to least squares (but not covered in class...).
 
 
 
@@ -306,12 +313,49 @@ acf(ts_mts_train)
 pacf(ts_mts_train)
 ```
 
+The autocorrelation is significant for all lags that are displayed in the correlogram. We will try differencing to make the series stationary.
 
+```{r}
+acf(diff(ts_mts_train))
+pacf(diff(ts_mts_train))
+```
 
+This looks much better! We will be using the differenced series.
 
+### Modelling
 
+First, we are searching for the order of the VAR model by using the VARselect function. 
 
+```{r}
+VARselect(diff(ts_mts_train), type = 'const')
+```
 
+BIC selects VAR of order 2! For VAR models we usually use the BIC as criterion!!
+
+```{r}
+var = VAR(diff(ts_mts_train), p = 4, type = 'const')
+
+#summary(var)
+```
+
+Let us now test if the risudals are well behaved. We are conducting a Protmanteau Test.
+
+```{r}
+serial.test(var, type = 'PT.asymptotic')
+```
+
+We reject the null hypothesis of no serial correlation for the VAR(2) model. We also conducted this test for VAR(3) and VAR(4) and VAR(5). For VAR(3) we received a p-value of around 0.015 and for VAR(4) we received a p-value of 0.08. The p-value for VAR(4) does not indicate statistical significance, but it is somewhat a borderline case, which is why we decided to chose a VAR(5) model - which happens to be the one that was selected by the AIC. The p-value for the VAR(5) models is far away from statistical significance.
+
+```{r}
+var_model = VAR(diff(ts_mts_train), p = 5, type = 'const')
+serial.test(var_model, type = 'PT.asymptotic')
+```
+
+```{r}
+forecast <- forecast(var_model, h=24)
+plot(forecast)
+lines(diff(ts_mts_train), col='green')
+```
 
 
 
