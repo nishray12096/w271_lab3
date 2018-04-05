@@ -144,13 +144,16 @@ RMSE_df
 
 plot(forecast_log_auto, main="AutoArima Spec - Log Transformed")
 lines(ts_ecom_test, col='red')
+legend(2000,9,legend=c('Predicted','Observed'),col=c('blue','red'),lty=1, cex=0.8)
 plot(forecast_auto, main="AutoArima Spec - Untransformed")
 lines(ts_ecom_test, col='red')
 plot(forecast_log_man, main="Manually Specified - Log Transformed")
 lines(ts_ecom_test, col='red')
 plot(forecast_man, main="Manually Specified - Untransformed")
 lines(ts_ecom_test, col='red')
+
 ```
+
 The AutoArima specification over the log transformed series has the best RMSE in out of sample comparisons. However, this specification also leads to non-normal residuals and potential autocorrelation in the residuals (as identified by the Shapiro-Wilk and Box-Ljung test in the previous section respectively). Thus, we will go forward with the AutoArima specification over the raw series, which has a comparable RMSE and non-significant results in both of these tests. Visually, these predictions are comparable. We finally use this model, trained over all available data, to predict values for 2017.
 
 ```{r, fig.height=3.45}
