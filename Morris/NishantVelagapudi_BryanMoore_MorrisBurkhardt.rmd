@@ -289,6 +289,20 @@ For series4, we reject the null hypothesis of non-stationarity. For all the othe
 
 ==> According to the test, only the stochastic trend of series4 is likely to be stationary. All the other series are likely to contain unit roots!!
 
+Let us repeat this test for the differenced series.
+
+
+```{r}
+adf.test(diff(df_mts_train$series1))$p.value
+adf.test(diff(df_mts_train$series2))$p.value
+adf.test(diff(df_mts_train$series3))$p.value
+adf.test(diff(df_mts_train$series4))$p.value
+```
+
+For the lag 1 differenced series, we reject the null hypothesis of non-stationarity for all four series.
+
+==> Definitely use differenced series!!!
+
 Next, let us test for cointegration.
 
 ```{r}
@@ -300,11 +314,9 @@ po.test(df_mts_train[c('series2','series4')])$p.value
 po.test(df_mts_train[c('series3','series4')])$p.value
 ```
 
-In a few cases we reject the null hypothesis (series1 with series2 and series1 with series4 and series2 with series4). In those cases it is likely that our time series are cointegrated. This means, we would be able to fit a linear regression between both time series. 
+In a few cases we reject the null hypothesis (series1 with series2 and series1 with series4 and series2 with series4). In those cases it is likely that our time series are cointegrated. This means we would be able to fit a linear regression between both time series. 
 
-Since some of the series are cointegrated, we should be using a VAR specification that includes an error correction mechanism (vector error correction model) and alternative estimation methods to least squares (but not covered in class...).
-
-
+Since some of the series are cointegrated, we should be using a VAR specification that includes an error correction term (vector error correction model) and alternative estimation methods to least squares. Since this was not covered in the course, we will have to model a VAR model despite detecting cointegration. 
 
 Next, let us look at acf and pacf.
 
@@ -333,9 +345,7 @@ VARselect(diff(ts_mts_train), type = 'const')
 BIC selects VAR of order 2! For VAR models we usually use the BIC as criterion!!
 
 ```{r}
-var = VAR(diff(ts_mts_train), p = 4, type = 'const')
-
-#summary(var)
+var = VAR(diff(ts_mts_train), p = 2, type = 'const')
 ```
 
 Let us now test if the risudals are well behaved. We are conducting a Protmanteau Test.
@@ -344,12 +354,15 @@ Let us now test if the risudals are well behaved. We are conducting a Protmantea
 serial.test(var, type = 'PT.asymptotic')
 ```
 
-We reject the null hypothesis of no serial correlation for the VAR(2) model. We also conducted this test for VAR(3) and VAR(4) and VAR(5). For VAR(3) we received a p-value of around 0.015 and for VAR(4) we received a p-value of 0.08. The p-value for VAR(4) does not indicate statistical significance, but it is somewhat a borderline case, which is why we decided to chose a VAR(5) model - which happens to be the one that was selected by the AIC. The p-value for the VAR(5) models is far away from statistical significance.
+We reject the null hypothesis of no serial correlation for the VAR(2) model. We also conducted this test for VAR(3), VAR(4) and VAR(5). For VAR(3) we received a p-value of around 0.015 and for VAR(4) we received a p-value of 0.08. The p-value for VAR(4) does not indicate statistical significance, but it is somewhat a borderline case, which is why we decided to chose a VAR(5) model - which happens to be the one that was selected by the AIC. The p-value for the VAR(5) models is far away from statistical significance.
 
 ```{r}
 var_model = VAR(diff(ts_mts_train), p = 5, type = 'const')
 serial.test(var_model, type = 'PT.asymptotic')
 ```
+
+
+
 
 ```{r}
 forecast <- forecast(var_model, h=24)
