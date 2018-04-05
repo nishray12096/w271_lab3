@@ -273,10 +273,12 @@ q2_ts_series4_test <- ts(q2_ts_series4_test, frequency = 12, start = c(1993,1))
 
 # Plot the training data for all four time series
 ts.plot(q2_ts_series1_train, q2_ts_series2_train, q2_ts_series3_train, q2_ts_series4_train, gpars=list(main="Series", ylab="Unknown units", col=c('blue','red','green','black')))
-```
-We can clearly see that none of the four time series are stationary. There does not appear to be an obvious seasonal trend within any of the four time series. We need to atempt to stationarize our time series via differencing.  There also appears to be high correlation between the four time series.
+legend("topleft",c("Series 1","Series 2","Series 3","Series 4"),lty=1,col=c('blue','red','green','black'),bty='n',cex=.75)
 
-<Include scatterplotMatrix / correlation matrix?>
+# Show the correlation between ther series
+cor(df_q2[3:6])
+```
+We can clearly see that none of the four time series are stationary. There does not appear to be an obvious seasonal trend within any of the four time series. We need to atempt to stationarize our time series via differencing.  There also appears to be high correlation between the four time series.  This is confirmed with the cor() function, showing that the correlation between any given time series pair is greater than 0.94.  All four of the series appear to be a random walk.
 
 #### Examine the ACF/PACF
 ```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
@@ -293,11 +295,17 @@ pacf(q2_ts_series3_train, main="Partial Autocorrelation function", lag.max = 24)
 hist(q2_ts_series4_train, main="Frequency Distribution of Series 4", xlab="Series 4")
 acf(q2_ts_series4_train, main="Autocorrelation function", lag.max = 24)
 pacf(q2_ts_series4_train, main="Partial Autocorrelation function", lag.max = 24)
+# Unit root tests to confirm non-stationarity
+adf.test(q2_ts_series1_train)
+adf.test(q2_ts_series2_train)
+adf.test(q2_ts_series3_train)
+adf.test(q2_ts_series4_train)
 ```
 We see that the distributions for the series are fairly uniform except for Series 3, which has a an exponential distribution. All four of the series show autocorrelation that "tails-off" with significant autocorrelation at a high number of lags. Additionally, all four of the series show that the partial autocorrelation cuts-off after lag q = 1, meaning that the autocorrelations at lag 2 and beyondare due to propogation of the autocorrelation at lag 1.  This informs our model by telling us that an VAR(1) should be used and that we are unlikely to need a non-seasonal MA components in our model. We also know that the VAR model captures a large amount of model dynamics and that obtaining a VARMA model can be computationally difficult. Thus we will proceed with a VAR model.
+We perform augmented Dickey-Fuller tests for stationarity on all four series, where the null hypothesis is that the series has a unit root.  If we cannot reject the null hypothesis, then it means that there is a unit root and that the series is not stationary. We see that for Series 1-3 we cannot reject the null hypothesis and must treat Series 1-3 as non-stationary. The p-value for Series 1 approaches the level of significance but does not achieve it. We can reject the null hypothesis for Series 4 and treat Series 4 as stationary.
 
 #### Differencing the series to impose stationarity
-```{r}
+```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
 
 # Cointegration???
 
@@ -314,3 +322,4 @@ We see that the distributions for the series are fairly uniform except for Serie
 ### Fit Evaluation
 
 ## Conclusion
+<Insert conclusion narrative>
