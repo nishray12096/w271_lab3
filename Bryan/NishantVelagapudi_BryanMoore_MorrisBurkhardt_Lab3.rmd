@@ -338,14 +338,31 @@ Per VARselect and seeking to minimize our AIC, we should proceed with a VAR(2) m
 ### Model Creation
 ```{r, out.width='.49\\linewidth', fig.width=7, fig.height=3.5, fig.show='hold', fig.align='center', strip.white=TRUE}
 mv_df <- mv_df[c(1,2,3,4)]
+colnames(mv_df) <- c("Series1", "Series2", "series3", "Series4")
 mv_model <- VAR(mv_df[],p=2, type="both")
 summary(mv_model)
 ```
+For the model predicting Series1, we see that the significant coefficients are on the first and second lag of Series4, and that the first and second lag of Series1 do not show significance. The positive and significant trend tells us that Series1 is increasing over time.
+For the model predicting Series2, we see that the significant coefficients are on the first and second lag of Series2 and on the second lag of Series4. The positive and significant trend tells us that Series1 is increasing over time. The positive and significant trend tells us that Series2 is increasing over time.
+For the model predicting Series3, we see that the significant coefficients are on the first lag of Series4 and the second lags of Series1, Series3, and Series4. The positive and significant trend tells us that Series3 is increasing over time.
+For the model predicting Series4, we see that the significant coefficients are on the first lag of Series3 and Series4 and the second lag of Series4. The positive and significant trend tells us that Series4 is increasing over time.
 
+```{r, out.width='.49\\linewidth', fig.width=5, fig.height=4, fig.show='hold', fig.align='center', strip.white=TRUE}
+# Residual diagnostics on our VAR model
+acf(resid(mv_model),52)
+```
+The ACF plots of our residuals shows that our residuals do not suffer from significant autocorrelation past lag 1, thus are well-behaved.
 
 ### Fit Evaluation
 ```{r}
+# Predict 1993 from our VAR model
+mv_model_test_prediction <- predict(mv_model, n.ahead=12, ci=0.95)
+#fanchart(mv_model_test_prediction)
+#forecast_mv_model_1993 <- forecast(mv_model, h = 12)
+#plot(forecast_mv_model_1993)
 
+# Predict 1994 from our VAR model
+#mv_model_out_of_sample_prediction <-
 ```
 
 
