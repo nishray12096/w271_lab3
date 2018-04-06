@@ -11,14 +11,15 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 
 pkg <- c('knitr', 'Hmisc', 'ggcorrplot', 'car','xts','forecast',
-         'dplyr', 'ggplot2', 'jtools', 'readr', 'astsa', 'vars', 'dplyr','tseries')
+         'dplyr', 'ggplot2', 'jtools', 'readr', 'astsa', 'vars', 'dplyr','tseries', 'GGally')
 invisible(lapply(pkg, require, character.only = T))
 ```
 
-# E-Commerce Retail Sales as a Percentage of Total Sales
-We have a time series that describes the percentage of sales attributed to e-commerce. Modelling this series will require three major steps. First, we will explore and visualize the series to understand potential transformations as well as AR and MA orders. Second, we will find the SARIMA specification with the optimal AIC value. Finally, we will compare model various model specifications (informed either through our EDA or our AutoArima results) on the basis of model performance in a hold-out data set. Data up until 2015 will be used for training, with 2015 and 2016 data being used for model selection. We generate a forecast for 2017 data using the best-performing specification trained over all data available.
+# Question 1: E-Commerce Retail Sales as a Percentage of Total Sales
+We have a time series that describes the percentage of sales attributed to e-commerce. Modelling this series will require three major steps. First, we will explore and visualize the series to understand potential transformations as well as AR and MA orders. Second, we will find the SARIMA specification with the optimal AIC value. Finally, we will compare various model specifications (informed either through our EDA or our AutoArima results) on the basis of model performance in a hold-out data set. Data up until 2015 will be used for training, with 2015 and 2016 data being used for model selection. We generate a forecast for 2017 data using the best-performing specification trained over all data available.
 
 ## Exploration and Visualization
+
 Although it has been dictated that we are to create a SARIMA model, we will use exploratory analysis to show that this is suitable.
 
 ```{r}
@@ -35,6 +36,7 @@ sum(is.na(ts_ecom_train))
 #summarize the series
 summary(ts_ecom_train)
 ```
+
 We can see that we have no missing values in this series: the series ranges from 0.7 to 9.5 with a mean of 3.8 and median of 3.6. 
 
 ```{r, fig.height=3.2}
@@ -55,6 +57,7 @@ pacf(ts_ecom_train)
 We see that the autocorrelations are significant for a large number of lag (16 quarters), further evidence of non-stationarity. The gradual decay without any spikes at seasonal intervals tells us that we will likely need a non-seasonal AR term p but may not need a seasonal AR term P.
 
 Imposing stationarity will require differencing the series. We take first and fourth order differences as well as the first order difference of the fourth order differences. 
+
 ```{r, warning=FALSE,message=FALSE}
 par(mfrow=c(2,2), mai = c(.3, 0.3, 0.3, 0.1))
 log_ts_ecom_train = log(ts_ecom_train)
@@ -76,6 +79,7 @@ We can see that the first order difference of the logarithm of the training seri
 
 ## Modelling
 We will start by using the AutoArima function to identify the SARIMA parameters that minimize AIC. We will explore modelling both the log transformed time series (handled by the argument "lambda=0") and the non-transformed series.
+
 ```{r}
 log_model_auto <- auto.arima(ts_ecom_train, ic = 'aicc', lambda = 0)
 model_auto <- auto.arima(ts_ecom_train, ic = 'aicc')
@@ -83,7 +87,8 @@ model_auto <- auto.arima(ts_ecom_train, ic = 'aicc')
 log_model_auto
 model_auto
 ```
-We can see that log transformed order is (0,1,0)(2,1,0)[4], while the non-transformed order is (0,1,1)(0,1,0). 
+
+We can see that log transformed order is (0,1,0)(2,1,0)[4], while the non-transformed order is (0,1,1)(0,1,0)[4]. 
 
 We will now fit models using these orders as well as a specification purely informed by our previous EDA for both the logarithm transformed series as well as the raw series.
 
@@ -97,6 +102,7 @@ manual_model_log <- Arima(ts_ecom_train, order = c(0,1,4), seasonal=c(0,0,0), la
 ```
 
 We check each of these four models for validity: we use the Shapiro-Wilk and Box-Ljung tests. The former tests for normality of residuals within the training set, while the latter tests for autocorrelation within these same residuals.
+
 ```{r}
 log_mod_auto_sw <- shapiro.test(log_model_auto $resid)
 log_mod_auto_box <-Box.test(log_model_auto $resid, type = "Ljung-Box")
@@ -120,7 +126,9 @@ rownames(TestResults) <- c('Log, Auto','Raw, Auto','Log, Manual', 'Raw, Manual')
 
 TestResults
 ```
+
 We compare these models on the basis of root mean square error (RMSE) of predictions in the validation holdout. Visuals of predictions versus actuals help us understand the forecasts.
+
 ```{r, warning=FALSE, message=FALSE}
 calculate_rmse <- function(fcast, test){
   rmse <- sqrt(mean((fcast - test)^2))
@@ -143,14 +151,14 @@ rownames(RMSE_df) <- c('Log, Auto','Raw, Auto','Log, Manual', 'Raw, Manual')
 RMSE_df
 
 plot(forecast_log_auto, main="AutoArima Spec - Log Transformed")
-lines(ts_ecom_test, col='red')
+lines(ts_ecom_test, col='green')
 legend(2000,9,legend=c('Predicted','Observed'),col=c('blue','red'),lty=1, cex=0.8)
 plot(forecast_auto, main="AutoArima Spec - Untransformed")
-lines(ts_ecom_test, col='red')
+lines(ts_ecom_test, col='green')
 plot(forecast_log_man, main="Manually Specified - Log Transformed")
-lines(ts_ecom_test, col='red')
+lines(ts_ecom_test, col='green')
 plot(forecast_man, main="Manually Specified - Untransformed")
-lines(ts_ecom_test, col='red')
+lines(ts_ecom_test, col='green')
 
 ```
 
@@ -161,6 +169,131 @@ model_auto_all <- auto.arima(ts_ecom, ic = 'aicc')
 plot(forecast(model_auto_all,h = 4), main='Forecasted 2017 E-Commerce Sales as Perc. of Total')
 ```
 
-# Question 2
-## EDA
+# Question 2:
+<Intro> We will build a vector autoregressive model to forecast 4 time series.
+
+## Exploration and Visualization
+
+First, we load the time series, display a few values and <???>
+
+```{r}
+mts = read.csv(file = "data_2018Spring_MTS.txt", sep=' ')
+ts_mts = ts(mts[ , c("series1", "series2", "series3", "series4")], start = c(1947, 1), freq = 12)
+ts_mts_train = ts(ts_mts[time(ts_mts) < 1993, ], start = c(1947, 1), freq = 12)
+ts_mts_test = ts(ts_mts[time(ts_mts) >= 1993, ], start = c(1993, 1), end = c(1993,12), freq = 12)
+head(ts_mts_train)
+
+#check for missing values
+sum(is.na(ts_mts_train))
+
+#summarize the series
+summary(ts_mts_train)
+```
+
+Next, we create a plot of all time series in one single graph.
+
+```{r, fig.width = 10, fig.height = 4}
+ts.plot(ts_mts_train, gpars=list(main="Plot of all four series", ylab="Unknown units", col=c('blue','red','green','black')))
+
+legend("topleft",c("Series 1","Series 2","Series 3","Series 4"), lty=1, col = c('blue','red','green','black'), bty='n', cex=.75)
+```
+
+In the following plot we look at the distribution of the four time series, as well as pairwise scatterplots and correlation coefficients.
+
+```{r}
+df_mts_train = data.frame(as.matrix(ts_mts_train), date=time(ts_mts_train))
+
+ggpairs(df_mts_train[c('series1', 'series2', 'series3', 'series4')], title='Pairwise Scatterplot of series1, series2, series3 and series4')
+```
+
+
+```{r}
+adf.test(df_mts_train$series1)$p.value; adf.test(df_mts_train$series2)$p.value
+adf.test(df_mts_train$series3)$p.value; adf.test(df_mts_train$series4)$p.value
+```
+
+```{r warning=FALSE}
+adf.test(diff(df_mts_train$series1))$p.value; adf.test(diff(df_mts_train$series2))$p.value
+adf.test(diff(df_mts_train$series3))$p.value; adf.test(diff(df_mts_train$series4))$p.value
+```
+
+We skip looking at autocorrelation and partial autocorrelation function for the original time series and go straight to looking at the differenced acf and pacf.
+
+```{r,fig.height=6}
+acf(diff(ts_mts_train))
+pacf(diff(ts_mts_train))
+```
+
+
+Next, we examine cointegration.
+
+```{r}
+po.test(df_mts_train[c('series1','series2')])$p.value; po.test(df_mts_train[c('series1','series3')])$p.value
+po.test(df_mts_train[c('series1','series4')])$p.value; po.test(df_mts_train[c('series2','series3')])$p.value
+po.test(df_mts_train[c('series2','series4')])$p.value; po.test(df_mts_train[c('series3','series4')])$p.value
+```
+
+
+
 ## Modelling
+
+First, we are searching for the order of the VAR model by using the VARselect function. 
+
+```{r}
+VARselect(diff(ts_mts_train), type = 'const')$selection
+```
+
+BIC selects VAR of order 2! For VAR models we usually use the BIC as criterion!!
+
+```{r}
+var = VAR(diff(ts_mts_train), p = 2, type = 'const')
+```
+
+Let us now test if the residuals are well behaved. We are conducting a Portmanteau Test.
+
+```{r}
+serial.test(var, type = 'PT.asymptotic')
+```
+
+We reject the null hypothesis of no serial correlation for the VAR(2) model. We also conducted this test for VAR(3), VAR(4) and VAR(5). For VAR(3) we received a p-value of around 0.015 and for VAR(4) we received a p-value of 0.08. The p-value for VAR(4) does not indicate statistical significance, but it is somewhat a borderline case, which is why we decided to chose a VAR(5) model - which happens to be the one that was selected by the AIC. The p-value for the VAR(5) models is about 0.23 and thus far away from statistical significance.
+
+```{r}
+var_model = VAR(diff(ts_mts_train), p = 5, type = 'const')
+```
+
+
+This model was informed by EDA and...
+-----
+Next, we want to strictly use an algorithmic approach to see if we can find a better model.
+
+```{r, fig.width=10, fig.height=6}
+diff_forecast = forecast(var_model, h=24)
+
+endvals = tail(ts_mts_train,n=1)
+
+integrate_diff_1 = cumsum(c(endvals[1], diff_forecast$forecast$series1$mean))
+integrate_diff_2 = cumsum(c(endvals[2], diff_forecast$forecast$series2$mean))
+integrate_diff_3 = cumsum(c(endvals[3], diff_forecast$forecast$series3$mean))
+integrate_diff_4 = cumsum(c(endvals[4], diff_forecast$forecast$series4$mean))
+
+diff_forecast_ts_diff = ts(cbind(integrate_diff_1, integrate_diff_2, integrate_diff_3, integrate_diff_4), start=c(1993, 1), freq=12)
+
+ts_mts_train_window = window(ts_mts_train, start = c(1990,1))
+
+par(mfrow=c(2,2))
+ts.plot(ts_mts_train_window[,1], ts_mts_test[,1], diff_forecast_ts_diff[,1], col=c('black', 'green', 'blue'))
+ts.plot(ts_mts_train_window[,2], ts_mts_test[,2], diff_forecast_ts_diff[,2], col=c('black', 'green', 'blue'))
+ts.plot(ts_mts_train_window[,3], ts_mts_test[,3], diff_forecast_ts_diff[,3], col=c('black', 'green', 'blue'))
+ts.plot(ts_mts_train_window[,4], ts_mts_test[,4], diff_forecast_ts_diff[,4], col=c('black', 'green', 'blue'))
+
+```
+
+
+
+
+
+
+
+
+
+
