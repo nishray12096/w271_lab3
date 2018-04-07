@@ -3,6 +3,7 @@ title: "Lab 3"
 author: "Nishant Velagapudi, Bryan Moore, Morris Burkhardt - Overall"
 date: "March 19, 2018"
 geometry: margin = 1.5 cm
+fontsize: 10 pt
 output:
   pdf_document: default
 ---
@@ -29,18 +30,15 @@ ts_ecom = ts(ecom$ECOMPCTNSA, start = c(1999, 4), frequency = 4)
 ts_ecom_train = ts(ts_ecom[time(ts_ecom) < 2015], start = c(1999, 4), freq = 4)
 ts_ecom_test = ts(ts_ecom[time(ts_ecom) >= 2015], start = c(2015, 1), freq = 4)
 head(ts_ecom_train, 13)
-
 #check for missing values
 sum(is.na(ts_ecom_train))
-
 #summarize the series
 summary(ts_ecom_train)
 ```
 
-We can see that we have no missing values in this series: the series ranges from 0.7 to 9.5 with a mean of 3.8 and median of 3.6. 
+We can see that we have no missing values in this series. The series ranges from 0.7 to 9.5 with a mean of 3.8 and median of 3.6. 
 
 ```{r, fig.height=3.2}
-#visualize the series
 plot(ts_ecom_train, xlab = 'Date', ylab = 'E-Commerce Retail Sales',
      main = 'E-commerce Sales: % of Total From 1999-2016')
 lines(ma(ts_ecom_train, order = 4, centre = T), col = 'green')
@@ -56,7 +54,7 @@ pacf(ts_ecom_train)
 
 We see that the autocorrelations are significant for a large number of lag (16 quarters), further evidence of non-stationarity. The gradual decay without any spikes at seasonal intervals tells us that we will likely need a non-seasonal AR term p but may not need a seasonal AR term P.
 
-Imposing stationarity will require differencing the series. We take first and fourth order differences as well as the first order difference of the fourth order differences. 
+Imposing stationarity will require differencing the series. We take first and fourth order differences as well as the first order difference of the fourth order differences. We do this for the non transformed series as well as the log transformed series. 
 
 ```{r, warning=FALSE,message=FALSE}
 par(mfrow=c(2,2), mai = c(.3, 0.3, 0.3, 0.1))
@@ -64,13 +62,14 @@ log_ts_ecom_train = log(ts_ecom_train)
 log_ts_ecom_test = log(ts_ecom_test)
 
 plot(diff(ts_ecom_train, lag = 4),xlab=NULL,ylab=NULL,main = "Lag 4 Differenced Series")
-plot(diff(diff(ts_ecom_train, lag = 4),lag=1),xlab=NULL,ylab=NULL,
+plot(diff(diff(ts_ecom_train, lag = 4),lag=1),xlab=NULL,ylab=NULL, 
      main = "Lag 1 Difference of Lag 4 Difference")
+
 plot(diff(log_ts_ecom_train, lag = 1),xlab=NULL,ylab=NULL,main = "Lag 1 Differenced Log Series")
 plot(diff(log_ts_ecom_train, lag = 4),xlab=NULL,ylab=NULL,main = "Lag 4 Differenced Log Series")
 
-adf.test(diff(diff(ts_ecom_train, lag = 4),lag=1))
-adf.test(log_ts_ecom_train)
+adf.test(diff(diff(ts_ecom_train, lag = 4),lag=1))$p.value
+adf.test(log_ts_ecom_train)$p.value
 ```
 
 We can see that our difference of differences approach leads to stationarity, as proven by the Augmented Dickey Fuller test. As this series increases in magnitude, the associated seasonal variance also increases, and none of the differences taken above are able to attain visually consistent variance. We thus examine the effect of taking the logarithmic transform of this series prior to differencing.
@@ -78,7 +77,8 @@ We can see that our difference of differences approach leads to stationarity, as
 We can see that the first order difference of the logarithm of the training series has near-constant variance, and also achieves stationarity by the ADF test. We do not require differencing of the log-transformed series to achieve stationarity.
 
 ## Modelling
-We will start by using the AutoArima function to identify the SARIMA parameters that minimize AIC. We will explore modelling both the log transformed time series (handled by the argument "lambda=0") and the non-transformed series.
+
+We will start by using the auto.arima function to identify the SARIMA parameters that minimize AIC. We will explore modelling both, the log transformed time series (handled by the argument "lambda=0") and the non-transformed series.
 
 ```{r}
 log_model_auto <- auto.arima(ts_ecom_train, ic = 'aicc', lambda = 0)
@@ -130,35 +130,29 @@ TestResults
 We compare these models on the basis of root mean square error (RMSE) of predictions in the validation holdout. Visuals of predictions versus actuals help us understand the forecasts.
 
 ```{r, warning=FALSE, message=FALSE}
-calculate_rmse <- function(fcast, test){
-  rmse <- sqrt(mean((fcast - test)^2))
+calculate_rmse = function(fcast, test){
+  rmse = sqrt(mean((fcast - test)^2))
 }
 
-par(mfrow=c(2,2), mai = c(.3, 0.3, 0.3, 0.1))
+forecast_log_auto = forecast(log_model_auto, h = 8, lambda=0)
+forecast_auto = forecast(model_auto, h = 8)
+forecast_log_man = forecast(manual_model_raw, h = 8)
+forecast_man = forecast(manual_model_log, h = 8, lambda=0)
 
-forecast_log_auto <- forecast(log_model_auto, h = 8, lambda=0)
-forecast_auto <- forecast(model_auto, h = 8)
-forecast_log_man <- forecast(manual_model_raw, h = 8)
-forecast_man <- forecast(manual_model_log, h = 8, lambda=0)
-
-RMSE_df <- data.frame(rbind(calculate_rmse(forecast_log_auto$mean,ts_ecom_test),
+df_RMSE = data.frame(rbind(calculate_rmse(forecast_log_auto$mean,ts_ecom_test),
            calculate_rmse(forecast_auto$mean,ts_ecom_test), calculate_rmse(
-             forecast_log_man$mean, ts_ecom_test), calculate_rmse(forecast_man$mean,
-                                                                  ts_ecom_test)))
+             forecast_log_man$mean, ts_ecom_test), calculate_rmse(forecast_man$mean, ts_ecom_test)))
 
-colnames(RMSE_df) <- c('RMSE')
-rownames(RMSE_df) <- c('Log, Auto','Raw, Auto','Log, Manual', 'Raw, Manual')
-RMSE_df
+colnames(df_RMSE) = c('RMSE')
+rownames(df_RMSE) = c('Log, Auto','Raw, Auto','Log, Manual', 'Raw, Manual')
+df_RMSE
 
-plot(forecast_log_auto, main="AutoArima Spec - Log Transformed")
-lines(ts_ecom_test, col='green')
-legend(2000,9,legend=c('Predicted','Observed'),col=c('blue','red'),lty=1, cex=0.8)
-plot(forecast_auto, main="AutoArima Spec - Untransformed")
-lines(ts_ecom_test, col='green')
-plot(forecast_log_man, main="Manually Specified - Log Transformed")
-lines(ts_ecom_test, col='green')
-plot(forecast_man, main="Manually Specified - Untransformed")
-lines(ts_ecom_test, col='green')
+par(mfrow=c(2,2), mai = c(.3, 0.3, 0.3, 0.1))
+plot(forecast_log_auto, main="AutoArima Spec - Log Transformed"); lines(ts_ecom_test, col='green')
+legend(2000, 9, legend=c('Predicted','Observed'), col=c('blue','red'), lty=1, cex=0.8)
+plot(forecast_auto, main="AutoArima Spec - Untransformed"); lines(ts_ecom_test, col='green')
+plot(forecast_log_man, main="Manually Specified - Log Transformed"); lines(ts_ecom_test, col='green')
+plot(forecast_man, main="Manually Specified - Untransformed"); lines(ts_ecom_test, col='green')
 
 ```
 
@@ -182,11 +176,8 @@ ts_mts = ts(mts[ , c("series1", "series2", "series3", "series4")], start = c(194
 ts_mts_train = ts(ts_mts[time(ts_mts) < 1993, ], start = c(1947, 1), freq = 12)
 ts_mts_test = ts(ts_mts[time(ts_mts) >= 1993, ], start = c(1993, 1), end = c(1993,12), freq = 12)
 head(ts_mts_train)
-
-#check for missing values
+#missing values
 sum(is.na(ts_mts_train))
-
-#summarize the series
 summary(ts_mts_train)
 ```
 
@@ -194,7 +185,6 @@ Next, we create a plot of all time series in one single graph.
 
 ```{r, fig.width = 10, fig.height = 4}
 ts.plot(ts_mts_train, gpars=list(main="Plot of all four series", ylab="Unknown units", col=c('blue','red','green','black')))
-
 legend("topleft",c("Series 1","Series 2","Series 3","Series 4"), lty=1, col = c('blue','red','green','black'), bty='n', cex=.75)
 ```
 
@@ -219,7 +209,7 @@ adf.test(diff(df_mts_train$series3))$p.value; adf.test(diff(df_mts_train$series4
 
 We skip looking at autocorrelation and partial autocorrelation function for the original time series and go straight to looking at the differenced acf and pacf.
 
-```{r,fig.height=6}
+```{r,fig.height=4}
 acf(diff(ts_mts_train))
 pacf(diff(ts_mts_train))
 ```
@@ -227,12 +217,14 @@ pacf(diff(ts_mts_train))
 
 Next, we examine cointegration.
 
-```{r}
-po.test(df_mts_train[c('series1','series2')])$p.value; po.test(df_mts_train[c('series1','series3')])$p.value
-po.test(df_mts_train[c('series1','series4')])$p.value; po.test(df_mts_train[c('series2','series3')])$p.value
-po.test(df_mts_train[c('series2','series4')])$p.value; po.test(df_mts_train[c('series3','series4')])$p.value
+```{r warning=FALSE}
+cbind(po.test(df_mts_train[c('series1','series2')])$p.value,
+po.test(df_mts_train[c('series1','series3')])$p.value,
+po.test(df_mts_train[c('series1','series4')])$p.value,
+po.test(df_mts_train[c('series2','series3')])$p.value,
+po.test(df_mts_train[c('series2','series4')])$p.value,
+po.test(df_mts_train[c('series3','series4')])$p.value)
 ```
-
 
 
 ## Modelling
@@ -243,57 +235,78 @@ First, we are searching for the order of the VAR model by using the VARselect fu
 VARselect(diff(ts_mts_train), type = 'const')$selection
 ```
 
-BIC selects VAR of order 2! For VAR models we usually use the BIC as criterion!!
+BIC selects VAR of order 2! For VAR models we usually use the BIC as criterion! We specify our VAR 2 model and immediately check if the residuals are well behaved. For this, we are  conducting a Portmanteau Test.
 
 ```{r}
 var = VAR(diff(ts_mts_train), p = 2, type = 'const')
+serial.test(var, type = 'PT.asymptotic')$serial$p.value[1]
 ```
 
-Let us now test if the residuals are well behaved. We are conducting a Portmanteau Test.
-
-```{r}
-serial.test(var, type = 'PT.asymptotic')
-```
-
-We reject the null hypothesis of no serial correlation for the VAR(2) model. We also conducted this test for VAR(3), VAR(4) and VAR(5). For VAR(3) we received a p-value of around 0.015 and for VAR(4) we received a p-value of 0.08. The p-value for VAR(4) does not indicate statistical significance, but it is somewhat a borderline case, which is why we decided to chose a VAR(5) model - which happens to be the one that was selected by the AIC. The p-value for the VAR(5) models is about 0.23 and thus far away from statistical significance.
+We reject the null hypothesis of no serial correlation for the VAR(2) model. We also conducted this test for VAR(3), VAR(4) and VAR(5). For VAR(3) we received a p-value of around 0.015 and for VAR(4) we received a p-value of 0.08. While the p-value for VAR(4) is the first p-value that does not indicate statistical significance, it is somewhat a borderline case. We therefore decided to go one step further and chose a VAR(5) model - which also happens to be the one that was selected by the AIC. The p-value for the VAR(5) models is about 0.23 and thus far away from statistical significance.
 
 ```{r}
 var_model = VAR(diff(ts_mts_train), p = 5, type = 'const')
 ```
 
 
-This model was informed by EDA and...
------
-Next, we want to strictly use an algorithmic approach to see if we can find a better model.
+## Forecasting
+
+Next, we calculate a forecast based on our model and conduct some in-depth residual diagnostics. 
 
 ```{r, fig.width=10, fig.height=6}
 diff_forecast = forecast(var_model, h=24)
-
 endvals = tail(ts_mts_train,n=1)
+int_1 = cumsum(c(endvals[1], diff_forecast$forecast$series1$mean))
+int_2 = cumsum(c(endvals[2], diff_forecast$forecast$series2$mean))
+int_3 = cumsum(c(endvals[3], diff_forecast$forecast$series3$mean))
+int_4 = cumsum(c(endvals[4], diff_forecast$forecast$series4$mean))
 
-integrate_diff_1 = cumsum(c(endvals[1], diff_forecast$forecast$series1$mean))
-integrate_diff_2 = cumsum(c(endvals[2], diff_forecast$forecast$series2$mean))
-integrate_diff_3 = cumsum(c(endvals[3], diff_forecast$forecast$series3$mean))
-integrate_diff_4 = cumsum(c(endvals[4], diff_forecast$forecast$series4$mean))
-
-diff_forecast_ts_diff = ts(cbind(integrate_diff_1, integrate_diff_2, integrate_diff_3, integrate_diff_4), start=c(1993, 1), freq=12)
-
-ts_mts_train_window = window(ts_mts_train, start = c(1990,1))
+ts_forecast = ts(cbind(int_1, int_2, int_3, int_4), start=c(1993, 1), freq=12)
+ts_mts_train_window = window(ts_mts_train, start = c(1985,1))
 
 par(mfrow=c(2,2))
-ts.plot(ts_mts_train_window[,1], ts_mts_test[,1], diff_forecast_ts_diff[,1], col=c('black', 'green', 'blue'))
-ts.plot(ts_mts_train_window[,2], ts_mts_test[,2], diff_forecast_ts_diff[,2], col=c('black', 'green', 'blue'))
-ts.plot(ts_mts_train_window[,3], ts_mts_test[,3], diff_forecast_ts_diff[,3], col=c('black', 'green', 'blue'))
-ts.plot(ts_mts_train_window[,4], ts_mts_test[,4], diff_forecast_ts_diff[,4], col=c('black', 'green', 'blue'))
-
+ts.plot(ts_mts_train_window[,1], ts_mts_test[,1], ts_forecast[,1], col=c('black', 'green', 'blue'))
+ts.plot(ts_mts_train_window[,2], ts_mts_test[,2], ts_forecast[,2], col=c('black', 'green', 'blue'))
+ts.plot(ts_mts_train_window[,3], ts_mts_test[,3], ts_forecast[,3], col=c('black', 'green', 'blue'))
+ts.plot(ts_mts_train_window[,4], ts_mts_test[,4], ts_forecast[,4], col=c('black', 'green', 'blue'))
 ```
 
+## Residual diagnostics
+
+First we plot the residuals.
+
+```{r, fig.height=3, fig.width=8, fig.align="center"}
+residuals = as.numeric(ts_mts_test) - window(ts_forecast, start = c(1993,1), end = c(1993,12))
+plot(residuals)
+```
+
+In our model selection process, we already examined the residuals using an asymptotic Portmanteau Test. We received a p-value of 0.2308 for the VAR(5) model. We also conducted a Breush-Godfrey LM test (commented out code below), which gives us a p-value of 0.9054.
+
+Finally, we conducted a Jarque-Bera test for normality. We test against the null hypothesis that the residuals are normally distributed. We reject the null hypothesis with a highly statistical significant test result. 
+
+```{r}
+#serial.test(var_model, type="PT.asymptotic"); serial.test(var_model, type="BG")
+normality.test(var_model, multivariate.only = TRUE)$jb.mul$JB$p.value[1,1]
+```
+
+Interpretation of the above...
 
 
+We are aware, that our final VAR model is not satisfactory in terms of fit. The following table however shows that different specifications do not lead to better fit. The table shows an overview of the different model specifications with a multitude of statistical test results as well as AIC and BIC for VAR model orders between 1 and 10.
 
-
-
-
-
-
+```{r}
+results = data.frame(); orderrange = 1:10
+for(i in orderrange) {
+  var_iter = VAR(diff(ts_mts_train), p = i, type="both")
+  
+  PT = serial.test(var_iter, type="PT.asymptotic")$serial$p.value
+  BG = serial.test(var_iter, type="BG")$serial$p.value
+  norm = normality.test(var_iter, multivariate.only = TRUE)$jb.mul$JB$p.value
+  results = rbind(results, cbind(AIC(var_iter), BIC(var_iter), PT, BG, norm))
+}
+rownames(results) = orderrange
+colnames(results) = c('AIC', '        BIC', '    Port. p-val', 
+                      ' Breusch-G. p-val', 'Jarque-B p-val')
+results
+```
 
