@@ -7,7 +7,8 @@ fontsize: 10 pt
 output:
   pdf_document: default
 ---
-
+\fontsize{9}{10}
+\selectfont
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -19,11 +20,11 @@ invisible(lapply(pkg, require, character.only = T))
 
 # Question 1: E-Commerce Retail Sales as a Percentage of Total Sales
 
-We have a time series that describes the percentage of sales attributed to e-commerce. Modelling this series will require three major steps. First, we will explore and visualize the series to understand potential transformations as well as AR and MA orders. Second, we will find the SARIMA specification with the optimal AIC value. Finally, we will compare various model specifications (informed either through our EDA or our AutoArima results) on the basis of model performance in a hold-out data set. Data up until 2015 will be used for training, with 2015 and 2016 data being used for model selection. We generate a forecast for 2017 data using the best-performing specification trained over all data available.
+Our time series describes the percentage of sales attributed to e-commerce. Modelling this series will require three major steps. First, we will explore and visualize the series to understand potential transformations as well as AR and MA orders. Second, we will find the SARIMA specification with the optimal AIC value. Finally, we will compare various model specifications (informed either through our EDA or our AutoArima results) on the basis of model performance in a hold-out data set. Data up until 2015 will be used for training, with 2015 and 2016 data being used for model selection. We generate a forecast for 2017 data using the best-performing specification trained over all data available.
 
 ## Exploration and Visualization
 
-Although it has been dictated that we are to create a SARIMA model, we will use exploratory analysis to show that this is suitable. First, we load the data, convert it to a time series, split the time series into training and testing data, display the first few rows, check for missing values and display the summary.
+Although it has been dictated that we are to create a SARIMA model, we will first explore the dataset to check if this is suitable. First, we load the data, convert it to a time series, split the time series into training and testing data, display the first few rows, check for missing values and display the summary.
 
 ```{r}
 ecom = read.csv(file = "ECOMPCTNSA.csv")
@@ -51,7 +52,7 @@ pacf(ts_ecom_train)
 
 We see that the autocorrelations are significant for a large number of lags (16 quarters), which is further evidence of non-stationarity. The gradual decay in the acf without any spikes at seasonal intervals tells us that we will likely need a non-seasonal AR term p but may not need a seasonal AR term P.
 
-Imposing stationarity will require differencing the series. We take first and fourth order differences as well as the first order difference of the fourth order differences. For the time series that look stationary in the differenced plots, we conduct Augmented Dickey Fuller (ADF) Tests with null hypothesis: The series contains unit roots (non-stationary stochastic trend).
+Imposing stationarity will require differencing the series. We take first and fourth order differences as well as the first order difference of the fourth order differences (indicative of first order differencing after an annual seasonal differencing). For the time series that look stationary in the differenced plots, we conduct Augmented Dickey Fuller (ADF) tests. The associated null hypothesis is that the series contains unit roots (indicates non-stationary stochastic trend).
 
 ```{r, warning=FALSE,message=FALSE, fig.height = 2.5, fig.width = 9}
 par(mfrow=c(1,2), mai = c(.4, 0.4, 0.4, 0.4))
@@ -62,7 +63,7 @@ plot(diff(diff(ts_ecom_train, lag = 4),lag=1),xlab=NULL,ylab=NULL,
 adf.test(diff(diff(ts_ecom_train, lag = 4),lag=1))$p.value
 ```
 
-We can see that our difference of differences approach leads to stationarity, which is corroborated by the ADF test result. As this series increases in magnitude, the associated seasonal variance also increases, and none of the differences taken above are able to attain visually consistent variance. 
+We can see that our difference of differences approach leads to at least stochastic stationarity (corroborated by the ADF test result). As this series increases in magnitude, the associated seasonal variance also increases, and none of the differences taken above are homoskedastic (assessed visually). 
 
 We thus examine the effect of taking the log transform of this series prior to differencing.
 
@@ -76,15 +77,15 @@ plot(diff(log_ts_ecom_train, lag = 4),xlab=NULL,ylab=NULL,main = "Lag 4 Differen
 adf.test(diff(log_ts_ecom_train))$p.value
 ```
 
-We can see that the first order difference of the logarithm of the training series has near-constant variance, and also achieves stationarity by the ADF test.
+We can see that the first order difference of the logarithm of the training series appears homoskedastic, and also achieves stationarity by the ADF test.
 
 ## Modelling
 
 First, we will specify two models purely informed by our exploratory data analysis. One model each for the log transformed and the raw (non-transformed) series.
 
-The spike in the ACF at a lag of 1 quarter suggests a nonseasonal MA(1) (q=1) component and the spikes at intervals of 4 quarters of lag out to approximately lag 16 suggest a seasonal MA(4) (Q=4).  Additionally, the spike at at a lag of 1 quarter in the PACF and the spikes at intervals of 4 quarters of lag tells us that a a nonseasonal AR(1) (p=1) component and a seasonal AR(1) (P=1) component are appropriate for our initial model.  Therefore, our initial model will be of the form $ARIMA(1,1,1)(1,1,4)_4$
+The spike in the ACF at a lag of 1 quarter suggests a nonseasonal MA(1) (q=1) component and the spikes at intervals of 4 quarters of lag out to approximately lag 16 suggest a seasonal MA(4) (Q=4). Additionally, the spike at at a lag of 1 quarter in the PACF and the spikes at intervals of 4 quarters of lag tells us that a a nonseasonal AR(1) (p=1) component and a seasonal AR(1) (P=1) component are appropriate for our initial model. Therefore, we manually specify $ARIMA(1,1,1)(1,1,4)_4$ for this series.
 
-In the log transformed case - without accounting for seasonality - we observed (plot not shown in this document) a somewhat sinusoidal ACF with a PACF showing no significant spikes beyond lag 4. We furthermore achieved steady variance through differencing with lag 1. Hence, an $ARIMA(0,1,4)$ might be appropriate.
+In the log transformed case with no modelled seasonality, we observed a somewhat sinusoidal ACF with a PACF showing no significant spikes beyond lag 4 (not shown). We furthermore achieved steady variance through differencing with lag 1. Hence, we would manually specify an order of $ARIMA(0,1,4)$ for the log transformed series.
 
 ```{r}
 manual_model_raw <- Arima(ts_ecom_train, order=c(1,1,1), seasonal=c(1,1,4))
@@ -100,11 +101,11 @@ auto_model_raw <- auto.arima(ts_ecom_train, ic = 'aicc')
 
 For the log transformed series, the auto.arima algorithm returns a model of order (0,1,0)(2,1,0)[4] and for the non-transformed series it returns a model of order (0,1,1)(0,1,0)[4]. 
 
-We display and discuss AICc and BIC for all four models in the table in the 'Residual diagnostics' section below. 
+We will compare performance of each of these four specifications based on diagnostic tests, AIC, BIC, and in-sample RMSE before finalizing one model for our out-of-sample prediction. 
 
 ## Forecast for 2015 and 2016
 
-Next, we calculate and visualize forecasts for the years 2015 and 2016, for which we have validation data. Visuals of predicted versus actual values help us understand the forecasts.
+We calculate and visualize forecasts for the years 2015 and 2016 (validation dataset) using each of the four specified models. Visuals of predictions versus actual values help us understand the forecasts.
 
 ```{r, warning=FALSE, message=FALSE, fig.height=2.5, fig.width=8}
 forecast_log_auto = forecast(auto_model_log, h = 8, lambda=0)
@@ -158,7 +159,7 @@ rownames(results) <- c('Log, Auto','Raw, Auto','Log, Manual', 'Raw, Manual')
 round(results,3)
 ```
 
-Aside of the auto.arima specification over the log, all models show no statistical significance for the Shapiro-Wilk or the Box-Ljung Test. Hence the residuals are likely to be normally distributed and not autocorrelated for every model except the auto.arima model with log transformation.
+Aside of the auto.arima specification over the transformed series, all models show no statistical significance for the Shapiro-Wilk or the Box-Ljung Test. We fail to prove that residuals are not normally distributed or that residuals are autocorrelated in each case except when using the AutoArima specification over the transformed series.
 
 The auto.arima specification over the log transformed model ('Log,Auto') has the best AICc, BIC and RMSE in out of sample comparisons. However, this specification also leads to non-normal residuals and potential autocorrelation in the residuals (as identified by the Shapiro-Wilk and Box-Ljung test). We therefore decided to not consider this model any longer. Between the remaining models, we have to decide if we prefer to go with the model with the lowest AICc/BIC ('Raw,Manual') or the model with the lowest RMSE ('Raw,Auto'), or the model that exhibits a compromise between those two ('Log,Manual'). We chose to continue with the auto arima specification over the untransformed series because it has the best RMSE without failing tests for residual normality and autocorrelation.
 
@@ -192,9 +193,7 @@ ts_mts_test = ts(ts_mts[time(ts_mts) >= 1993, ], start = c(1993, 1), end = c(199
 head(ts_mts); sum(is.na(ts_mts)); summary(ts_mts_train)
 ```
 
-We have a total of four time series with no missing values. The time series all range between about 5 and 83. 
-
-Next, we create a plot of all four time series in one single graph.
+We have a total of four time series with no missing values. The time series all range between about 5 and 83. We plot our four time series with shared axes.
 
 ```{r, fig.width = 10, fig.height = 4}
 ts.plot(ts_mts_train, gpars=list(main="Plot of all four series", ylab="Unknown units", 
@@ -203,7 +202,7 @@ legend("topleft",c("Series 1","Series 2","Series 3","Series 4"), lty=1,
        col = c('blue','red','green','black'), bty='n', cex=.75)
 ```
 
-It is pretty obvious that none of the time series is stationary. All time series seem to have a similar deterministic trend. The stochastic trend also seems to be similar between the four time series - just different in magnitude. series1 has the strongest stochastic trend, followed by series4, series3 and series2. There does not appear to be an obvious seasonal trend within any of the four time series.
+None of these series appear stationary: each actually appears to share a similar determinstic trend. The stochastic trend also seems to be similar between the four time series, though different in magnitude. Series1 has the strongest stochastic trend, followed by series4, series3 and series2. There does not appear to be an obvious seasonal trend within any of the four time series.
 
 In the following plot we can see the distribution of the four time series, as well as pairwise scatterplots and correlation coefficients.
 
@@ -213,7 +212,7 @@ ggpairs(df_mts_train[c('series1', 'series2', 'series3', 'series4')],
         title='Pairwise Scatterplot of series1, series2, series3 and series4')
 ```
 
-As expected, the series are highly correlated (> 0.95). High correlation however does not imply a causal relationship between the variables. Since we have no further information about the variables, we are unable to speculate on wheter or not this could be attributed to a common exogenous factor. We also see that the distributions for the series are fairly uniform except for series3, which is closer to following an exponential distribution.
+As expected, the series are highly correlated (> 0.95). High correlation however does not imply a causal relationship between the variables and in this case is uninformative due to the shared deterministic trend. Since we have no further information about the variables, we are unable to speculate on wheter or not this could be attributed to a common exogenous factor. We also see that the distributions for the series are fairly uniform except for series3, which is closer to following an exponential distribution.
 
 Next, we conduct Dickey-Fuller Tests to test for unit roots. The null hypothesis states that the series contains unit roots (non-stationary stochastic trend), while the alternative hypothesis states that the series contains no unit roots (stationary stochastic trend).
 
@@ -233,17 +232,16 @@ adf.test(diff(df_mts_train$series3))$p.value, adf.test(diff(df_mts_train$series4
 
 For the lag 1 differenced series, we reject the null hypothesis of non-stationarity for all four series.
 
-We looked at the acf and pacf of the original time series and - as expected - observed that the autocorrelations were significant for all lags and all time series and pairs of time series displayed in the plot. We saw a few significant PACF values for higher lags in select pairs of times series - this suggests that the final VAR model will likely need to have an order of at least 2 (???). We therefore decided to difference all four series. The acf and pacf for the differenced time series are displayed below.
+The acf and pacf of the original time series (not shown here) showed that autocorrelations were significant for all lags, time series, and pairs of time series displayed in the plot. This is due to the fact that all series have a positive trend. We observe occasionally significant PACF values for higher lags in select pairs of times series - this suggests that the final VAR model may use a high order. We decided to difference all four series to achieve stationarity - the acf and pacf for the differenced time series are displayed below.
 
 ```{r,fig.height=4}
 acf(diff(ts_mts_train))
 pacf(diff(ts_mts_train))
 ```
 
-While certainly not perfect, the differenced series' pacf and acf display statistically more convenient behavior.
-Differencing eliminates the positive drift from each of the series - which results in ACF plots that are more meaningful. We furthermore do not observe any obvious seasonality - evidenced by PACF charts of differenced and non-differenced (not displayed) series. Further differencing did not significantly improve the acf and pacf.
+The differenced series' pacf and acf display statistically more convenient behavior. Differencing eliminates the positive drift from each of the series - which results in informative ACF plots. We furthermore do not observe any obvious seasonality as evidenced by PACF charts of differenced and non-differenced (not displayed) series. Further differencing did not provide any further insights from either acf or pacf (not shown).
 
-Next, we examine cointegration by conducting Phillips-Ouliaris tests, with the null hypothesis that two series are not cointegrated.
+We examine cointegration of our four series by conducting Phillips-Ouliaris tests, with the null hypothesis that two series are not cointegrated.
 
 ```{r warning=FALSE}
 cbind(po.test(df_mts_train[c('series1','series2')])$p.value, #column 1
@@ -256,7 +254,7 @@ po.test(df_mts_train[c('series3','series4')])$p.value) #column 6
 
 In a few cases we reject the null hypothesis: series1/series2, series1/series4 and series2/series4. In those cases it is likely that our time series are cointegrated. This means we would be able to fit a linear regression between both time series. 
 
-Since some of the series are cointegrated, we should be using a VAR specification that includes an error correction term (vector error correction model) and alternative estimation methods to least squares. Since this was not covered in the course, we will have to model a simple VAR model despite detecting cointegration. 
+Since some of the series are cointegrated, we acknowledge that we should be using a VAR specification that includes an error correction term (vector error correction model) and alternative estimation methods to least squares. Since this was not covered in the course, we will have to model a simple VAR model despite detecting cointegration. 
 
 ## Modelling
 
@@ -266,7 +264,7 @@ First, we search for the order of the VAR model by using the VARselect function.
 VARselect(diff(ts_mts_train), type = 'both')$selection
 ```
 
-For VAR models we preferably use the BIC (SC). The minimum BIC is achieved for the order 2 VAR model. We specify our VAR 2 model and immediatly check if the residuals are well behaved. For this, we are  conducting a Portmanteau Test. The null hypothesis of the Portmanteau Test states that there is no serial correlation.
+For VAR models we preferably use the BIC (SC). The minimum BIC is achieved for the order 2 VAR model. We specify our VAR 2 model and immediatly check if the residuals are well behaved. For this, we are  conducting a Portmanteau Test. The null hypothesis of this test is that there is no serial correlation.
 
 ```{r}
 var = VAR(diff(ts_mts_train), p = 2, type = 'both')
@@ -282,7 +280,7 @@ var_model = VAR(diff(ts_mts_train), p = 5, type = 'both')
 
 ## Forecasting for 1993 and 1994
 
-Next, we calculate a two-year forecast based on our model. We plot our forecast for all four time series. To better visualize the forecasts, we only plot the time series from 1985 onwards. The training time series (1/1985 - 12/1992) is plotted in black, while the forecast (1/1993 - 12/1994) is plotted in blue and the test time series (1/1993 - 12/1993) is plotted in green.
+Next, we calculate a two-year forecast based on our model. We plot our forecast for all four time series. To better visualize the forecasts, we only plot the time series from 1985 onwards. The training time series (1/1985 - 12/1992) is plotted in black, while the forecast (1/1993 - 12/1994) is plotted in blue and the test time series (1/1993 - 12/1993) is plotted in green. We also define a function to reconstruct our individual time series from differenced values.
 
 ```{r, fig.width=10, fig.height=2.5}
 calculate_int = function(model, forecast_steps, endvals){
@@ -313,21 +311,16 @@ ts.plot(ts_mts_train_window[,4], ts_mts_test[,4], ts_forecast[,4], col=c('black'
         main = 'series4 with forecast')
 ```
 
-Most of our forecasts look like smoothed linear continuations of the last two years of the training time series.
+Our forecasts appear to be smoothed linear continuations of the last two years of the training time series.
 
-## Residual diagnostics
+## Diagnostics
 
-Finally, we conduct some in-depth residual diagnostics. 
-
-First we plot the residuals.
+We conduct some in-depth residual diagnostics over the VARselect specification. While we plotted the residuals, we found that with only 12 points, it was difficult to tell if the series was truly white noise. Thus, residual plots are not included.
 
 ```{r, fig.height=4, fig.width=6, fig.align="center"}
 residuals = as.numeric(ts_mts_test) - window(ts_forecast, start = c(1993,1), end = c(1993,12))
-par(mfrow=c(1,1), mai = c(.2, 0.2, 0.2, 0.2))
-plot(residuals, main = 'Residuals of VAR(5) model', ylab = 'Date', type='b')
+#plot(residuals, main = 'Residuals of VAR(5) model', ylab = 'Date', type='b')
 ```
-
-Since we only have 12 test data points, it is hard to determine whether or not the residuals look like white noise. 
 
 In our model selection process, we already examined the residuals using an asymptotic Portmanteau Test. We received a p-value of 0.2308 for the VAR(5) model. Next, we conduct a Breush-Godfrey LM test, with null hypothesis that there is no serial correlation 
 
@@ -337,13 +330,12 @@ serial.test(var_model, type="BG")$serial$p.value
 
 The Breush-Godfrey gives us a p-value of 0.9054, which means we have statistical significance and the residuals are likely not to be serially correlated.
 
-Finally, we conduct a Jarque-Bera test for normality. We test against the null hypothesis that the residuals are normally distributed. 
-
+Finally, we conduct a Jarque-Bera test for normality. 
 ```{r}
 normality.test(var_model, multivariate.only = TRUE)$jb.mul$JB$p.value[1,1]
 ```
 
-We reject the null hypothesis with a highly statistically significant test result, which means that the residuals are not likely normally distributed.
+We reject the null hypothesis with a highly statistically significant test result: proving that our residuals are not sampled from a normal distribution.
 
 ```{r}
 int = calculate_int(var_model, 12, tail(ts_mts_train, n=1))
@@ -358,7 +350,7 @@ df_RMSE
 
 ## Conclusion
 
-We are aware that our final VAR model is not satisfactory in terms of fit. The following table however shows that different specifications of the VAR model do not lead to a 'better' fit in an objective sense. Rather, we face a trade-off between different statistical metrics. The table below shows an overview of different model specifications from VAR of order 1 to VAR of order 10 (indicated by the row label), with AIC, BIC, three different p-values for statistical tests and the sum of the root mean squared error over all four series.
+Our final VAR model is not satisfactory in terms of fit and diagnostic test results. We now go on to explore how different orders perform in terms of RMSE, AIC, BIC, and diagnostic tests. We see that no single order provides an objectively "best" fit and we instead face a trade-off between different metrics. The table below shows an overview of different model specifications from VAR of order 1 to VAR of order 10 (indicated by the row label), with AIC, BIC, three different p-values for statistical tests and the sum of the root mean squared error over all four series.
 
 ```{r}
 results = data.frame(); orderrange = 1:10
@@ -378,4 +370,23 @@ colnames(results) = c('AIC', '       BIC', ' Port. p-val',
                       ' BG p-val', 'JB p-val', 'sum(RMSE)')
 round(results, 3)
 ```
+Given these data, we do believe that a VAR(7) model is actually more appropriate than a VAR(5) model. We will use this specification to make our final 12 month prediction (1995). The below plots include historic data, validation set performance (1993, 1994), and our 12 month post sample prediction (1995).
 
+```{r, fig.height=4.6}
+var_model_final = VAR(diff(ts_mts_train), p = 7, type = 'both')
+
+int = calculate_int(var_model_final, 36, tail(ts_mts_train, n=1))
+ts_forecast_fin = ts(cbind(int[[1]], int[[2]], int[[3]], int[[4]]), start=c(1993, 1), freq=12)
+
+par(mfrow=c(2,2), mai = c(.4, 0.4, 0.4, 0.4))
+ts.plot(ts_mts_train_window[,1], ts_mts_test[,1], ts_forecast_fin[,1], col=c('black', 'green', 'blue'),
+        main = 'series1 with forecast')
+legend(1985, 64, legend=c('Predicted','Observed', 'historic'), col=c('blue', 'green', 'black'), 
+       lty=1, cex=0.8)
+ts.plot(ts_mts_train_window[,2], ts_mts_test[,2], ts_forecast_fin[,2], col=c('black', 'green', 'blue'), 
+        main = 'series2 with forecast')
+ts.plot(ts_mts_train_window[,3], ts_mts_test[,3], ts_forecast_fin[,3], col=c('black', 'green', 'blue'), 
+        main = 'series3 with forecast')
+ts.plot(ts_mts_train_window[,4], ts_mts_test[,4], ts_forecast_fin[,4], col=c('black', 'green', 'blue'), 
+        main = 'series4 with forecast')
+```
